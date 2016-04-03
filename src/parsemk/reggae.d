@@ -6,6 +6,8 @@ import std.array;
 import std.exception;
 import std.stdio;
 import std.file;
+import std.algorithm;
+
 
 
 version(unittest) import unit_threaded;
@@ -68,11 +70,20 @@ string[] elementToReggae(in ParseTree element) {
     case "Makefile.ConditionBlock":
 
         auto cond = element.children[0];
-        auto var = cond.matches[3];
+        auto varSigil = cond.matches.find(",$(");
+        varSigil.popFront;
+        auto var = varSigil.front;
         auto ifBlock = cond.children[0];
         auto lines = ifBlock.children;
         auto elseLines = cond.children.length > 2 ? cond.children[1].children : [];
-        auto value = `""`;
+        auto valueRange = cond.matches.find("(");
+        valueRange.popFront;
+        auto value = "";
+        while(valueRange.front != ",$(") {
+            value ~= valueRange.front;
+            valueRange.popFront;
+        }
+        value = `"` ~ value ~ `"`;
 
         string[] flatMapToReggae(in ParseTree[] lines) {
             return lines.map!(elementToReggae).join.map!(a => "    " ~ a).array;
@@ -81,7 +92,7 @@ string[] elementToReggae(in ParseTree element) {
         auto elseResult = flatMapToReggae(elseLines);
         return [`static if(userVars.get("` ~ var ~ `", ` ~ value ~ `) == ` ~ value ~ `) {`] ~
             flatMapToReggae(lines) ~
-            (elseResult.length ? `else {` : []) ~
+            (elseResult.length ? [`else {`] : []) ~
             elseResult ~
             `}`;
 
@@ -134,8 +145,36 @@ string toReggaeOutput(ParseTree parseTree) {
         [`enum OS = userVars.get("OS", "solaris");`]);
 }
 
+@("ifeq works correctly with no else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS)",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
 
-@("ifeq works correctly") unittest {
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("OS", "") == "") {`,
+         `    enum OS = "osx";`,
+         `}`
+        ]);
+}
+
+@("ifeq works correctly with no else block and non-empty comparison") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (MACOS,$(OS)",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
+
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
+         `    enum OS = "osx";`,
+         `}`
+        ]);
+}
+
+
+@("ifeq works correctly with else block") unittest {
     auto parseTree = Makefile(
         ["ifeq (,$(BUILD)",
          "BUILD_WAS_SPECIFIED=0",

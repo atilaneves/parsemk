@@ -1,1 +1,3 @@
-OS:=solaris
+ifeq (,$(BUILD))
+BUILD_WAS_SPECIFIED=0
+endif
