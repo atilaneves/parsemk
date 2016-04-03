@@ -7,6 +7,8 @@ import std.file;
 void main(string[] args) {
     auto parseTree = Makefile(cast(string)read(args[1]));
     writeln(parseTree);
+    writeln("----------------------------------------");
     writeln("reggae: ");
+    writeln;
     writeln(toReggaeOutput(parseTree));
 }
