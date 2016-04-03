@@ -34,6 +34,10 @@ string[] toReggaeLines(ParseTree parseTree) {
     return elements;
 }
 
+private string[] introduceNewBinding(in string var, in string val) {
+    return ["enum " ~ var ~ ` = "` ~ val ~ `";`];
+}
+
 string[] elementToReggae(in ParseTree element, bool topLevel = true) {
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
@@ -46,7 +50,7 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         }
         return topLevel
             ? ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`]
-            : ["enum " ~ var ~ ` = "` ~ value ~ `";`];
+            : introduceNewBinding(var, value);
 
     case "Makefile.RecursiveAssignment":
         auto assignment = element.children[0];
@@ -56,7 +60,7 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         if(assignment.matches.length > 3) {
             value = assignment.matches[2 .. $-1].join;
         }
-        return ["enum " ~ var ~ ` = "` ~ value ~ `";`];
+        return introduceNewBinding(var, value);
 
 
     case "Makefile.Include":
@@ -64,24 +68,22 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         auto filenameNode = include.children[0];
         auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
         auto input = cast(string)read(fileName);
-
         return toReggaeLines(Makefile(input));
 
     case "Makefile.Ignore":
         return [];
 
     case "Makefile.Line":
-        return elementToReggae(element.children[0]);
+        return elementToReggae(element.children[0], topLevel);
 
     case "Makefile.ConditionBlock":
-
         auto cond = element.children[0];
         auto varSigil = cond.matches.find(",$(");
         varSigil.popFront;
         auto var = varSigil.front;
         auto ifBlock = cond.children[0];
-        auto lines = ifBlock.children.map!(a => a.children).join;
-        auto elseLines = cond.children.length > 2 ? cond.children[1].children[0].children : [];
+        auto ifElements = ifBlock.children;
+        auto elseElements = cond.children.length > 2 ? cond.children[1].children : [];
         auto valueRange = cond.matches.find("(");
         valueRange.popFront;
         auto value = "";
@@ -91,13 +93,13 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         }
         value = `"` ~ value ~ `"`;
 
-        string[] flatMapToReggae(in ParseTree[] lines) {
-            return lines.map!(a => elementToReggae(a, false)).join.map!(a => "    " ~ a).array;
+        string[] flatMapToReggae(in ParseTree[] elements) {
+            return elements.map!(a => elementToReggae(a, false)).join.map!(a => "    " ~ a).array;
         }
 
-        auto elseResult = flatMapToReggae(elseLines);
+        auto elseResult = flatMapToReggae(elseElements);
         return [`static if(userVars.get("` ~ var ~ `", ` ~ value ~ `) == ` ~ value ~ `) {`] ~
-            flatMapToReggae(lines) ~
+            flatMapToReggae(ifElements) ~
             (elseResult.length ? [`else {`] : []) ~
             elseResult ~
             `}`;
@@ -227,7 +229,11 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
     writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
-         `    enum OS = "osx";`,
-         `}`]);
+        [`static if(userVars.get("OS", "") == "") {`,
+         `    enum uname_S = userVars.get("uname_S", "Linux");`,
+         `    static if(uname_S == "Darwin") {`,
+         `        enum OS = "osx";`,
+         `    }`,
+         `}`,
+            ]);
 }
