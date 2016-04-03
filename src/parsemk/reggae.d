@@ -75,32 +75,30 @@ private string resolveVariablesInValue(string val) {
     return ret ~ val;
 }
 
+private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool newBinding) {
+    auto assignment = element.children[0];
+
+    auto var   = assignment.matches[0];
+    auto value = "";
+    if(assignment.matches.length > 3) {
+        value = assignment.matches[2 .. $-1].join;
+    }
+    value = resolveVariablesInValue(value);
+    return newBinding
+        ? introduceNewBinding(environment, var, value)
+        : ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", ` ~ value ~ `);`];
+}
+
+
 string[] elementToReggae(in ParseTree element, ref Environment environment, bool topLevel = true) {
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
-        auto assignment = element.children[0];
-
-        auto var   = assignment.matches[0];
-        auto value = "";
-        if(assignment.matches.length > 3) {
-            value = assignment.matches[2 .. $-1].join;
-        }
-        value = resolveVariablesInValue(value);
-        return topLevel
-            ? ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", ` ~ value ~ `);`]
-            : introduceNewBinding(environment, var, value);
+        auto newBinding = !topLevel;
+        return assignmentToReggae(element, environment, !topLevel);
 
     case "Makefile.RecursiveAssignment":
-        auto assignment = element.children[0];
-
-        auto var   = assignment.matches[0];
-        auto value = "";
-        if(assignment.matches.length > 3) {
-            value = assignment.matches[2 .. $-1].join;
-        }
-        value = resolveVariablesInValue(value);
-        return introduceNewBinding(environment, var, value);
-
+        auto newBinding = false;
+        return assignmentToReggae(element, environment, !topLevel);
 
     case "Makefile.Include":
         auto include = element.children[0];
