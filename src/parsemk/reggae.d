@@ -16,30 +16,44 @@ string[] toReggaeLines(ParseTree parseTree) {
     enforce(parseTree.children.length == 1);
     parseTree = parseTree.children[0];
 
-    enforce(parseTree.name == "Makefile.Lines", "Unexpected parse tree " ~ parseTree.name);
+    enforce(parseTree.name == "Makefile.Elements", "Unexpected parse tree " ~ parseTree.name);
 
-    string[] lines;
+    string[] elements;
 
 
-    foreach(line; parseTree.children) {
-        enforce(line.name == "Makefile.Line", "Unexpected parse tree " ~ line.name);
-        lines ~= lineToReggae(line);
+    foreach(element; parseTree.children) {
+        enforce(element.name == "Makefile.Element", "Unexpected parse tree " ~ element.name);
+        elements ~= elementToReggae(element);
     }
 
-    return lines;
+    return elements;
 }
 
-private string[] lineToReggae(in ParseTree line) {
-    switch(line.children[0].name) {
-    case "Makefile.Assignment":
-        auto assignment = line.children[0];
+string[] elementToReggae(in ParseTree element) {
+    switch(element.children[0].name) {
+    case "Makefile.SimpleAssignment":
+        auto assignment = element.children[0];
 
         auto var   = assignment.matches[0];
-        auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
+        auto value = "";
+        if(assignment.matches.length > 3) {
+            value = assignment.matches[2 .. $-1].join;
+        }
         return ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`];
 
+    case "Makefile.RecursiveAssignment":
+        auto assignment = element.children[0];
+
+        auto var   = assignment.matches[0];
+        auto value = "";
+        if(assignment.matches.length > 3) {
+            value = assignment.matches[2 .. $-1].join;
+        }
+        return ["enum " ~ var ~ ` = "` ~ value ~ `";`];
+
+
     case "Makefile.Include":
-        auto include = line.children[0];
+        auto include = element.children[0];
         auto filenameNode = include.children[0];
         auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
         auto input = cast(string)read(fileName);
@@ -48,8 +62,31 @@ private string[] lineToReggae(in ParseTree line) {
     case "Makefile.Ignore":
         return [];
 
+    case "Makefile.Line":
+        return elementToReggae(element.children[0]);
+
+    case "Makefile.ConditionBlock":
+
+        auto cond = element.children[0];
+        auto var = cond.matches[3];
+        auto ifBlock = cond.children[0];
+        auto lines = ifBlock.children;
+        auto elseLines = cond.children.length > 2 ? cond.children[1].children : [];
+        auto value = `""`;
+
+        string[] flatMapToReggae(in ParseTree[] lines) {
+            return lines.map!(elementToReggae).join.map!(a => "    " ~ a).array;
+        }
+
+        auto elseResult = flatMapToReggae(elseLines);
+        return [`static if(userVars.get("` ~ var ~ `", ` ~ value ~ `) == ` ~ value ~ `) {`] ~
+            flatMapToReggae(lines) ~
+            (elseResult.length ? `else {` : []) ~
+            elseResult ~
+            `}`;
+
     default:
-        throw new Exception("Unknown/Unimplemented parser " ~ line.children[0].name);
+        throw new Exception("Unknown/Unimplemented parser " ~ element.children[0].name);
     }
 }
 
@@ -95,4 +132,25 @@ string toReggaeOutput(ParseTree parseTree) {
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`enum OS = userVars.get("OS", "solaris");`]);
+}
+
+
+@("ifeq works correctly") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(BUILD)",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ].join("\n") ~ "\n");
+
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("BUILD", "") == "") {`,
+         `    enum BUILD_WAS_SPECIFIED = "0";`,
+         `    enum BUILD = "release";`,
+         `else {`,
+         `    enum BUILD_WAS_SPECIFIED = "1";`,
+         `}`
+        ]);
 }
