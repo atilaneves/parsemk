@@ -25,10 +25,9 @@ string[] toReggaeLines(ParseTree parseTree) pure {
         if(line.children[0].name == "Makefile.Assignment") {
             auto assignment = line.children[0];
 
-            lines ~= "enum " ~
-                assignment.matches[0] ~
-                " = " ~
-                `"` ~ assignment.matches[2] ~ `";`;
+            auto var   = assignment.matches[0];
+            auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
+            lines ~= "enum " ~ var ~ " = " ~ `"` ~ value ~ `";`;
         }
     }
 
@@ -58,4 +57,11 @@ string toReggaeOutput(ParseTree parseTree) pure {
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
         [`enum QUIET = "true";`]);
+}
+
+
+@("Variables can be assigned to nothing") unittest {
+    auto parseTree = Makefile("QUIET:=\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`enum QUIET = "";`]);
 }
