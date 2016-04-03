@@ -64,6 +64,7 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         auto filenameNode = include.children[0];
         auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
         auto input = cast(string)read(fileName);
+
         return toReggaeLines(Makefile(input));
 
     case "Makefile.Ignore":
@@ -79,8 +80,8 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         varSigil.popFront;
         auto var = varSigil.front;
         auto ifBlock = cond.children[0];
-        auto lines = ifBlock.children;
-        auto elseLines = cond.children.length > 2 ? cond.children[1].children : [];
+        auto lines = ifBlock.children.map!(a => a.children).join;
+        auto elseLines = cond.children.length > 2 ? cond.children[1].children[0].children : [];
         auto valueRange = cond.matches.find("(");
         valueRange.popFront;
         auto value = "";

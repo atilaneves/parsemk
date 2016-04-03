@@ -8,8 +8,8 @@ Makefile:
     Element             <- ConditionBlock / Line
     Line                <- SimpleAssignment / RecursiveAssignment / Include / Ignore
     ConditionBlock      <- IfEqual Else? EndIf
-    Else                <- "else" endOfLine Line+
-    IfEqual             <- "ifeq" Spacing "(" (!"," .)* ",$(" identifier ")" ")" endOfLine Line+
+    Else                <- "else" endOfLine Element+
+    IfEqual             <- "ifeq" Spacing "(" (!"," .)* ",$(" identifier ")" ")" endOfLine Element+
     CloseParen          <- ")"
     EndIf               <- "endif" endOfLine
     SimpleAssignment    <- Spacing Variable ":=" (!endOfLine .)* endOfLine
