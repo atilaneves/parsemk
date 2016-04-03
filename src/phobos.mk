@@ -27,3 +27,5 @@
 # determined by using uname
 
 QUIET:=
+
+include src/osmodel.mak

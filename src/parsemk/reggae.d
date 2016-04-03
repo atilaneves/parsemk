@@ -5,12 +5,13 @@ import pegged.grammar;
 import std.array;
 import std.exception;
 import std.stdio;
+import std.file;
 
 
 version(unittest) import unit_threaded;
 
 
-string[] toReggaeLines(ParseTree parseTree) pure {
+string[] toReggaeLines(ParseTree parseTree) {
     enforce(parseTree.name == "Makefile", "Unexpected parse tree " ~ parseTree.name);
     enforce(parseTree.children.length == 1);
     parseTree = parseTree.children[0];
@@ -22,19 +23,35 @@ string[] toReggaeLines(ParseTree parseTree) pure {
 
     foreach(line; parseTree.children) {
         enforce(line.name == "Makefile.Line", "Unexpected parse tree " ~ line.name);
-        if(line.children[0].name == "Makefile.Assignment") {
+        switch(line.children[0].name) {
+        case "Makefile.Assignment":
             auto assignment = line.children[0];
 
             auto var   = assignment.matches[0];
             auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
             lines ~= "enum " ~ var ~ " = " ~ `"` ~ value ~ `";`;
+            break;
+
+        case "Makefile.Include":
+            auto include = line.children[0];
+            auto filenameNode = include.children[0];
+            auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
+            auto input = cast(string)read(fileName);
+            lines ~= toReggaeOutput(Makefile(input));
+            break;
+
+        case "Makefile.Ignore":
+            break;
+
+        default:
+            throw new Exception("Unknown/Unimplemented parser " ~ line.children[0].name);
         }
     }
 
     return lines;
 }
 
-string toReggaeOutput(ParseTree parseTree) pure {
+string toReggaeOutput(ParseTree parseTree) {
     return toReggaeLines(parseTree).join("\n");
 }
 
@@ -64,4 +81,16 @@ string toReggaeOutput(ParseTree parseTree) pure {
     auto parseTree = Makefile("QUIET:=\n");
     toReggaeLines(parseTree).shouldEqual(
         [`enum QUIET = "";`]);
+}
+
+
+@("includes are expanded in place") unittest {
+    enum fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("OS:=solaris");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`enum OS = "solaris";`]);
 }
