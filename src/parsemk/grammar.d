@@ -5,9 +5,10 @@ import pegged.grammar;
 mixin(pegged.grammar.grammar(`
 Makefile:
     Lines      <- Line*
-    Line       <- Empty / Assignment
-    Assignment <- Variable ":=" identifier
+    Line       <- Ignore / Assignment
+    Assignment <- Variable ":=" identifier endOfLine
     Variable   <- identifier
-    Empty      <- "\n" / "\r\n" / Comment
-    Comment    <- Spacing "#" Spacing .*
+    Ignore     <- Comment / Empty
+    Comment    <- Spacing "#" (!endOfLine .)* endOfLine
+    Empty      <- endOfLine / Spacing endOfLine
 `));

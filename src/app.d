@@ -1,15 +1,12 @@
 import parsemk.grammar;
+import parsemk.reggae;
 import std.stdio;
+import std.file;
 
-enum input0 = `
-# comments and stuff
-#
-QUIET:=foo
-`;
 
-enum input = `QUIET:=foo`;
-
-void main() {
-    auto parseTree = Makefile(input);
+void main(string[] args) {
+    auto parseTree = Makefile(cast(string)read(args[1]));
     writeln(parseTree);
+    writeln("reggae: ");
+    writeln(toReggaeOutput(parseTree));
 }

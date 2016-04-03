@@ -4,6 +4,7 @@ import parsemk.grammar;
 import pegged.grammar;
 import std.array;
 import std.exception;
+import std.stdio;
 
 
 version(unittest) import unit_threaded;
@@ -21,30 +22,40 @@ string[] toReggaeLines(ParseTree parseTree) pure {
 
     foreach(line; parseTree.children) {
         enforce(line.name == "Makefile.Line", "Unexpected parse tree " ~ line.name);
-        auto assignment = line.children[0];
+        if(line.children[0].name == "Makefile.Assignment") {
+            auto assignment = line.children[0];
 
-        lines ~= "enum " ~
-            assignment.matches[0] ~
-            " = " ~
-            `"` ~ assignment.matches[2] ~ `";`;
+            lines ~= "enum " ~
+                assignment.matches[0] ~
+                " = " ~
+                `"` ~ assignment.matches[2] ~ `";`;
+        }
     }
 
     return lines;
 }
 
-string toReggaeOuput(ParseTree parseTree) pure {
+string toReggaeOutput(ParseTree parseTree) pure {
     return toReggaeLines(parseTree).join("\n");
 }
 
 
 @("Variable assignment with := to enum QUIET") unittest {
-    auto parseTree = Makefile(`QUIET:=true`);
+    auto parseTree = Makefile("QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
         [`enum QUIET = "true";`]);
 }
 
 @("Variable assignment with := to enum FOO") unittest {
-    auto parseTree = Makefile(`FOO:=bar`);
+    auto parseTree = Makefile("FOO:=bar\n");
     toReggaeLines(parseTree).shouldEqual(
         [`enum FOO = "bar";`]);
+}
+
+@("Comments are ignored") unittest {
+    auto parseTree = Makefile(
+        "# this is a comment\n"
+        "QUIET:=true\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`enum QUIET = "true";`]);
 }
