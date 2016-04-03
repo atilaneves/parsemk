@@ -34,7 +34,7 @@ string[] toReggaeLines(ParseTree parseTree) {
     return elements;
 }
 
-string[] elementToReggae(in ParseTree element) {
+string[] elementToReggae(in ParseTree element, bool topLevel = true) {
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
         auto assignment = element.children[0];
@@ -44,7 +44,9 @@ string[] elementToReggae(in ParseTree element) {
         if(assignment.matches.length > 3) {
             value = assignment.matches[2 .. $-1].join;
         }
-        return ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`];
+        return topLevel
+            ? ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`]
+            : ["enum " ~ var ~ ` = "` ~ value ~ `";`];
 
     case "Makefile.RecursiveAssignment":
         auto assignment = element.children[0];
@@ -89,7 +91,7 @@ string[] elementToReggae(in ParseTree element) {
         value = `"` ~ value ~ `"`;
 
         string[] flatMapToReggae(in ParseTree[] lines) {
-            return lines.map!(elementToReggae).join.map!(a => "    " ~ a).array;
+            return lines.map!(a => elementToReggae(a, false)).join.map!(a => "    " ~ a).array;
         }
 
         auto elseResult = flatMapToReggae(elseLines);
@@ -203,7 +205,7 @@ string toReggaeOutput(ParseTree parseTree) {
     {
         auto file = File(fileName, "w");
         file.writeln("ifeq (MACOS,$(OS))");
-        file.writeln("  OS=osx");
+        file.writeln("  OS:=osx");
         file.writeln("endif");
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
