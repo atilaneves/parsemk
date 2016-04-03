@@ -1,0 +1,22 @@
+{
+    "name": "parsemk",
+    "description": "A minimal D application.",
+    "copyright": "Copyright © 2016, atila",
+    "authors": ["atila"],
+    "targetType": "executable",
+    "dependencies": {
+        "pegged": "~>0.3.1"
+    },
+    "configurations": [
+        { "name": "executable" },
+        {
+            "name": "unittest",
+            "preBuildCommands": ["dub run unit-threaded -c gen_ut_main -- -f bin/ut.d"],
+            "mainSourceFile": "bin/ut.d",
+            "excludedSourceFiles": ["src/app.d"],
+            "dependencies": {
+                "unit-threaded": "~>0.6.0"
+            }
+        }
+    ]
+}
