@@ -5,3 +5,6 @@ __dummy.html
 *.obj
 parsemk
 bin
+reggaefile.d
+build
+.reggae
