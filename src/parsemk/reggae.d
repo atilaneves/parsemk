@@ -36,7 +36,7 @@ private string[] lineToReggae(in ParseTree line) {
 
         auto var   = assignment.matches[0];
         auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
-        return ["enum " ~ var ~ " = " ~ `"` ~ value ~ `";`];
+        return ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`];
 
     case "Makefile.Include":
         auto include = line.children[0];
@@ -61,13 +61,13 @@ string toReggaeOutput(ParseTree parseTree) {
 @("Variable assignment with := to enum QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = "true";`]);
+        [`enum QUIET = userVars.get("QUIET", "true");`]);
 }
 
 @("Variable assignment with := to enum FOO") unittest {
     auto parseTree = Makefile("FOO:=bar\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum FOO = "bar";`]);
+        [`enum FOO = userVars.get("FOO", "bar");`]);
 }
 
 @("Comments are ignored") unittest {
@@ -75,14 +75,14 @@ string toReggaeOutput(ParseTree parseTree) {
         "# this is a comment\n"
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = "true";`]);
+        [`enum QUIET = userVars.get("QUIET", "true");`]);
 }
 
 
 @("Variables can be assigned to nothing") unittest {
     auto parseTree = Makefile("QUIET:=\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = "";`]);
+        [`enum QUIET = userVars.get("QUIET", "");`]);
 }
 
 
@@ -94,5 +94,5 @@ string toReggaeOutput(ParseTree parseTree) {
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum OS = "solaris";`]);
+        [`enum OS = userVars.get("OS", "solaris");`]);
 }
