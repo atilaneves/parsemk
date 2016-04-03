@@ -9,11 +9,11 @@ Makefile:
     Line                <- SimpleAssignment / RecursiveAssignment / Include / Ignore
     ConditionBlock      <- IfEqual Else? EndIf
     Else                <- "else" endOfLine Line+
-    IfEqual             <- "ifeq" Spacing "(" (!"," .)* ",$(" identifier ")" endOfLine Line+
+    IfEqual             <- "ifeq" Spacing "(" (!"," .)* ",$(" identifier ")" ")" endOfLine Line+
     CloseParen          <- ")"
     EndIf               <- "endif" endOfLine
-    SimpleAssignment    <- Variable ":=" (!endOfLine .)* endOfLine
-    RecursiveAssignment <- Variable "=" (!endOfLine .)* endOfLine
+    SimpleAssignment    <- Spacing Variable ":=" (!endOfLine .)* endOfLine
+    RecursiveAssignment <- Spacing Variable "=" (!endOfLine .)* endOfLine
     Variable            <- identifier
     Include             <- "include" Spacing FileName endOfLine
     FileName            <- FileNameChar*

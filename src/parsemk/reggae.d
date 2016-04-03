@@ -11,6 +11,9 @@ import std.algorithm;
 
 
 version(unittest) import unit_threaded;
+else {
+    enum Serial;
+}
 
 
 string[] toReggaeLines(ParseTree parseTree) {
@@ -133,7 +136,7 @@ string toReggaeOutput(ParseTree parseTree) {
         [`enum QUIET = userVars.get("QUIET", "");`]);
 }
 
-
+@Serial
 @("includes are expanded in place") unittest {
     enum fileName = "/tmp/inner.mk";
     {
@@ -147,7 +150,7 @@ string toReggaeOutput(ParseTree parseTree) {
 
 @("ifeq works correctly with no else block") unittest {
     auto parseTree = Makefile(
-        ["ifeq (,$(OS)",
+        ["ifeq (,$(OS))",
          "OS=osx",
          "endif",
             ].join("\n") ~ "\n");
@@ -161,7 +164,7 @@ string toReggaeOutput(ParseTree parseTree) {
 
 @("ifeq works correctly with no else block and non-empty comparison") unittest {
     auto parseTree = Makefile(
-        ["ifeq (MACOS,$(OS)",
+        ["ifeq (MACOS,$(OS))",
          "OS=osx",
          "endif",
             ].join("\n") ~ "\n");
@@ -176,7 +179,7 @@ string toReggaeOutput(ParseTree parseTree) {
 
 @("ifeq works correctly with else block") unittest {
     auto parseTree = Makefile(
-        ["ifeq (,$(BUILD)",
+        ["ifeq (,$(BUILD))",
          "BUILD_WAS_SPECIFIED=0",
          "BUILD=release",
          "else",
@@ -192,4 +195,20 @@ string toReggaeOutput(ParseTree parseTree) {
          `    enum BUILD_WAS_SPECIFIED = "1";`,
          `}`
         ]);
+}
+
+@Serial
+@("includes with ifeq are expanded in place") unittest {
+    enum fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("ifeq (MACOS,$(OS))");
+        file.writeln("  OS=osx");
+        file.writeln("endif");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
+         `    enum OS = "osx";`,
+         `}`]);
 }

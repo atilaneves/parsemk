@@ -1,3 +1,3 @@
-ifeq (,$(BUILD))
-BUILD_WAS_SPECIFIED=0
+ifeq (MACOS,$(OS))
+  OS=osx
 endif
