@@ -108,7 +108,7 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
 }
 
 string toReggaeOutput(ParseTree parseTree) {
-    return toReggaeLines(parseTree).join("\n");
+    return ([`import reggae;`] ~ toReggaeLines(parseTree)).join("\n");
 }
 
 
@@ -210,6 +210,22 @@ string toReggaeOutput(ParseTree parseTree) {
         file.writeln("endif");
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
+         `    enum OS = "osx";`,
+         `}`]);
+}
+
+@("nested ifeq") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwmin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
          `    enum OS = "osx";`,
