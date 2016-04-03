@@ -23,32 +23,34 @@ string[] toReggaeLines(ParseTree parseTree) {
 
     foreach(line; parseTree.children) {
         enforce(line.name == "Makefile.Line", "Unexpected parse tree " ~ line.name);
-        switch(line.children[0].name) {
-        case "Makefile.Assignment":
-            auto assignment = line.children[0];
-
-            auto var   = assignment.matches[0];
-            auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
-            lines ~= "enum " ~ var ~ " = " ~ `"` ~ value ~ `";`;
-            break;
-
-        case "Makefile.Include":
-            auto include = line.children[0];
-            auto filenameNode = include.children[0];
-            auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
-            auto input = cast(string)read(fileName);
-            lines ~= toReggaeOutput(Makefile(input));
-            break;
-
-        case "Makefile.Ignore":
-            break;
-
-        default:
-            throw new Exception("Unknown/Unimplemented parser " ~ line.children[0].name);
-        }
+        lines ~= lineToReggae(line);
     }
 
     return lines;
+}
+
+private string[] lineToReggae(in ParseTree line) {
+    switch(line.children[0].name) {
+    case "Makefile.Assignment":
+        auto assignment = line.children[0];
+
+        auto var   = assignment.matches[0];
+        auto value = assignment.matches.length > 3 ? assignment.matches[2] : "";
+        return ["enum " ~ var ~ " = " ~ `"` ~ value ~ `";`];
+
+    case "Makefile.Include":
+        auto include = line.children[0];
+        auto filenameNode = include.children[0];
+        auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
+        auto input = cast(string)read(fileName);
+        return toReggaeLines(Makefile(input));
+
+    case "Makefile.Ignore":
+        return [];
+
+    default:
+        throw new Exception("Unknown/Unimplemented parser " ~ line.children[0].name);
+    }
 }
 
 string toReggaeOutput(ParseTree parseTree) {
