@@ -45,13 +45,34 @@ string[] toReggaeLines(ParseTree parseTree, ref Environment environment) {
 
 private string[] introduceNewBinding(ref Environment environment, in string var, in string val) {
     environment.bindings[var] = true;
-    return ["enum " ~ var ~ ` = "` ~ val ~ `";`];
+    return ["enum " ~ var ~ ` = ` ~ val ~ `;`];
 }
 
 private string consultBinding(ref Environment environment, in string var, in string val) {
     return var in environment.bindings
                       ? var
                       : `userVars.get("` ~ var ~ `", ` ~ val ~ `)`;
+}
+
+private string resolveVariablesInValue(string val) {
+    string ret = `"`;
+    auto varStart = val.countUntil("$(");
+
+    if(varStart == -1) return `"` ~ val ~ `"`;
+    while(varStart != -1) {
+        varStart += 2; //skip $(
+        ret ~= val[0 .. varStart - 2] ~ `" ~ `;
+        val = val[varStart .. $];
+
+        varStart = val.countUntil(")");
+        ret ~= val[0 .. varStart];
+        val = val[varStart + 1 .. $];
+
+        varStart = val.countUntil("$(");
+        val = val[0 .. $];
+    }
+
+    return ret ~ val;
 }
 
 string[] elementToReggae(in ParseTree element, ref Environment environment, bool topLevel = true) {
@@ -64,8 +85,9 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         if(assignment.matches.length > 3) {
             value = assignment.matches[2 .. $-1].join;
         }
+        value = resolveVariablesInValue(value);
         return topLevel
-            ? ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", "` ~ value ~ `");`]
+            ? ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", ` ~ value ~ `);`]
             : introduceNewBinding(environment, var, value);
 
     case "Makefile.RecursiveAssignment":
@@ -76,6 +98,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         if(assignment.matches.length > 3) {
             value = assignment.matches[2 .. $-1].join;
         }
+        value = resolveVariablesInValue(value);
         return introduceNewBinding(environment, var, value);
 
 
@@ -114,7 +137,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         }
 
         auto elseResult = flatMapToReggae(elseElements);
-        return //[`static if(userVars.get("` ~ var ~ `", ` ~ value ~ `) == ` ~ value ~ `) {`] ~
+        return
             [`static if(` ~ consultBinding(environment, var, value) ~ ` == ` ~ value ~ `) {`] ~
             flatMapToReggae(ifElements) ~
             (elseResult.length ? [`else {`] : []) ~
@@ -251,5 +274,21 @@ string toReggaeOutput(ParseTree parseTree) {
          `        enum OS = "osx";`,
          `    }`,
          `}`,
+            ]);
+}
+
+
+@("Refer to declared variable") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`static if(userVars.get("MODEL", "") == "") {`,
+         `    enum MODEL = "64";`,
+         `}`,
+         `enum MODEL_FLAG = userVars.get("MODEL_FLAG", "-m" ~ MODEL);`,
             ]);
 }

@@ -36,7 +36,9 @@ ifeq (MACOS,$(OS))
   OS:=osx
 endif
 
-#ifeq (,$(MODEL))
+ifeq (,$(MODEL))
+# DELETE
+  MODEL:=64
 #   ifeq ($(OS), solaris)
 # # TODO    uname_M:=$(shell isainfo -n)
 #   else
@@ -51,6 +53,6 @@ endif
 #   ifeq (,$(MODEL))
 # # TODO    $(error Cannot figure 32/64 model from uname -m: $(uname_M))
 #   endif
-#endif
+endif
 
-# TODO MODEL_FLAG:=-m$(MODEL)
+MODEL_FLAG:=-m$(MODEL)
