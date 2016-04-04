@@ -67,7 +67,7 @@ string[] toReggaeLines(ParseTree parseTree) {
 
     foreach(statement; parseTree.children) {
         enforce(statement.name == "Makefile.Statement", "Unexpected parse tree " ~ statement.name);
-        statements ~= statementToReggaeLines(statement.children[0]);
+        statements ~= statementToReggaeLines(statement.children[0], true);
     }
 
     return statements;
@@ -228,19 +228,26 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return statementToReggaeLines(statement.children[0], topLevel);
 
     case "Makefile.Assignment":
-        writeln("assignment");
+        writeln("assignment. top? ", topLevel);
         auto var = statement.children[0].matches.join;
         auto val = eval(statement.children[1]);
         return topLevel
-            ? [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`]
-            : [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`];
+            ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
+            : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
     }
 }
 
-string eval(in ParseTree statement) {
-    return `consultVar("QUIET", "true")`;
+string eval(in ParseTree expression) {
+    switch(expression.name) {
+    case "Makefile.Expression":
+        return eval(expression.children[0]);
+    case "Makefile.LiteralString":
+        return `"` ~ expression.matches.join ~ `"`;
+    default:
+        throw new Exception("Unknown expression " ~ expression.name);
+    }
 }
 
 @("Variable assignment with := to auto QUIET") unittest {
@@ -249,11 +256,11 @@ string eval(in ParseTree statement) {
         [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
 }
 
-// @("Variable assignment with := to auto FOO") unittest {
-//     auto parseTree = Makefile("FOO:=bar\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
-// }
+@("Variable assignment with := to auto FOO") unittest {
+    auto parseTree = Makefile("FOO:=bar\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
+}
 
 // @("Comments are not ignored") unittest {
 //     auto parseTree = Makefile(
