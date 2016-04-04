@@ -103,6 +103,9 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     case "Makefile.Error":
         return [`throw new Exception(` ~ eval(statement.children[0]) ~ `);`];
 
+    case "Makefile.Empty":
+        return [];
+
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
     }
@@ -346,7 +349,7 @@ string eval(in ParseTree expression) {
             ]);
 }
 
-@("error statement") unittest {
+@("error statement 1") unittest {
     auto parseTree = Makefile(
         ["ifeq (,$(MODEL))",
          "  $(error Model is not set for $(foo))",
@@ -355,6 +358,19 @@ string eval(in ParseTree expression) {
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == consultVar("MODEL", "")) {`,
          `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
+         `}`,
+            ]);
+}
+
+@("error statement 2") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
+         "endif",
+         ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
          `}`,
             ]);
 }

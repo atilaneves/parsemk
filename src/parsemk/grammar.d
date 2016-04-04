@@ -17,13 +17,13 @@ Makefile:
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
     Function          <- Shell / FindString / IfFunc
-    Shell             <- "$(shell " NonEmptyString ")"
-    FindString        <- "$(findstring " FuncArg "," FuncLastArg ")"
-    IfFunc            <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
+    Shell             <- Spacing "$(shell " NonEmptyString ")"
+    FindString        <- Spacing "$(findstring " FuncArg "," FuncLastArg ")"
+    IfFunc            <- Spacing "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
     FuncArg           <- Variable / (!"," .)*
     FuncLastArg       <- Variable / (!")" .)*
     LiteralString     <- NonEmptyString / EmptyString
-    NonEmptyString    <- [a-zA-Z_0-9./\- ]+
+    NonEmptyString    <- [a-zA-Z_0-9./\- :]+
     EmptyString       <- ""
     Variable          <- "$(" (!")" .)* ")"
     Comment           <- Spacing "#" (!endOfLine .)*
@@ -32,5 +32,5 @@ Makefile:
     FileNameChar      <- [a-zA-Z_0-9./]
     Error             <- Spacing "$(error " Expression ")"
     Override          <- "override " VariableDecl ("=" / ":=") Expression
-    Empty             <- Spacing
+    Empty             <- ""
 `));
