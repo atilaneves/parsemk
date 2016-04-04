@@ -2,8 +2,7 @@
 # Keep this file in sync between druntime, phobos, and dmd repositories!
 
 ifeq (,$(OS))
-# # TODO  uname_S:=$(shell uname -s)
-  uname_S:=Linux
+  uname_S:=$(shell uname -s)
   ifeq (Darwin,$(uname_S))
     OS:=osx
   endif
@@ -37,22 +36,22 @@ ifeq (MACOS,$(OS))
 endif
 
 ifeq (,$(MODEL))
-# DELETE
+  ifeq ($(OS), solaris)
+    uname_M:=$(shell isainfo -n)
+  else
+    uname_M:=$(shell uname -m)
+  endif
+  # DELETE
   MODEL:=64
-#   ifeq ($(OS), solaris)
-# # TODO    uname_M:=$(shell isainfo -n)
-#   else
-# # TODO    uname_M:=$(shell uname -m)
-#   endif
-#   ifneq (,$(findstring $(uname_M),x86_64 amd64))
-#     MODEL:=64
-#   endif
-#   ifneq (,$(findstring $(uname_M),i386 i586 i686))
-#     MODEL:=32
-#   endif
-#   ifeq (,$(MODEL))
-# # TODO    $(error Cannot figure 32/64 model from uname -m: $(uname_M))
-#   endif
+  # ifneq (,$(findstring $(uname_M),x86_64 amd64))
+  #   MODEL:=64
+  # endif
+  # ifneq (,$(findstring $(uname_M),i386 i586 i686))
+  #   MODEL:=32
+  # endif
+  # ifeq (,$(MODEL))
+  #   $(error Cannot figure 32/64 model from uname -m: $(uname_M))
+  # endif
 endif
 
 MODEL_FLAG:=-m$(MODEL)
