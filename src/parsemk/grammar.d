@@ -12,9 +12,7 @@ Makefile:
     IfEqual             <- Spacing "ifeq" Spacing "(" IfArg "," IfArg ")" endOfLine Element+
     IfNotEqual          <- Spacing "ifneq" Spacing "(" IfArg "," IfArg ")" endOfLine Element+
     IfArg               <- Spacing FindString / Spacing "$(" (!")" .)* ")" / Spacing identifier / ""
-    FindString          <- "$(findstring " FindStringNeedle "," FindStringHaystack ")"
-    FindStringNeedle    <- Variable / (!"," .)*
-    FindStringHaystack  <- Variable / (!")" .)*
+    FindString          <- "$(findstring " FuncArg "," FuncLastArg ")"
     Variable            <- "$(" (!")" .)* ")"
     EndIf               <- Spacing "endif" endOfLine
     SimpleAssignment    <- Spacing VariableDecl Spacing ":=" (!endOfLine .)* endOfLine
