@@ -403,24 +403,24 @@ string eval(in ParseTree expression) {
          `}`]);
 }
 
-// @("nested ifeq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=Linux",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = "Linux";`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("nested ifeq") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["uname_S"] = "Linux";`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
+         `        makeVars["OS"] = "osx";`,
+         `    }`,
+         `}`,
+            ]);
+}
 
 
 // @("Refer to declared variable") unittest {
