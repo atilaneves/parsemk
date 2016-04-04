@@ -29,3 +29,17 @@
 QUIET:=
 
 include src/osmodel.mak
+
+# Default to a release built, override with BUILD=debug
+ifeq (,$(BUILD))
+BUILD_WAS_SPECIFIED=0
+BUILD=release
+else
+BUILD_WAS_SPECIFIED=1
+endif
+
+ifneq ($(BUILD),release)
+    ifneq ($(BUILD),debug)
+        $(error Unrecognized BUILD=$(BUILD), must be 'debug' or 'release')
+    endif
+endif
