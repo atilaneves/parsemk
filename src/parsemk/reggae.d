@@ -60,9 +60,18 @@ private string consultBinding(ref Environment environment, in string var, in str
 }
 
 private string resolveVariablesInValue(in string val) {
-    auto re = regex(`\$\((.+)\)`, "g");
-    auto replacement = val.replaceAll(re, `" ~ makeVars["$1"] ~ "`);
-    return `"` ~ replacement ~ `"`;
+    string replacement = val;
+
+    auto shellRe = regex(`\$\(shell (.+)\)`, "g");
+    replacement = replacement.replaceAll(shellRe, `" ~ executeShell("$1").output ~ "`);
+
+    auto varRe = regex(`\$\((.+)\)`, "g");
+    replacement = replacement.replaceAll(varRe, `" ~ makeVars["$1"] ~ "`);
+
+    auto ret = `"` ~ replacement ~ `"`;
+    ret = ret.replaceAll(regex(`^"" ~ `), "");
+    ret = ret.replaceAll(regex(` ~ ""`), "");
+    return ret;
 }
 
 private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool newBinding) {
@@ -281,28 +290,26 @@ string toReggaeOutput(ParseTree parseTree) {
         [`if(userVars.get("MODEL", "") == "") {`,
          `    makeVars["MODEL"] = "64";`,
          `}`,
-         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ makeVars["MODEL"] ~ "");`,
+         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ makeVars["MODEL"]);`,
             ]);
 }
 
 
-// @("shell commands get translated to a module constructor") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          // "  ifeq (Linux, $(uname_S))",
-//          // "    OS:=linux",
-//          // "  endif",
-//          "endif",
-//         ].join("\n") ~ "\n";
-//         );
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if(userVars.get("OS", "") == "") {`,
-//          `    string uname_S;`,
-//          `    static this() {`,
-//          `        uname_S = executeShell("uname -s");`,
-//          `    }`,
-//          //`    if(uname_S)`
-//          `}`,
-//             ]);
-// }
+@("shell commands get translated to a module constructor") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if(userVars.get("OS", "") == "") {`,
+         `    makeVars["uname_S"] = executeShell("uname -s").output;`,
+         `    if(makeVars["uname_S"] == "Darwin") {`,
+         `        makeVars["OS"] = "osx";`,
+         `    }`,
+         `}`,
+            ]);
+}
