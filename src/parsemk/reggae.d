@@ -347,19 +347,19 @@ string eval(in ParseTree expression) {
         ]);
 }
 
-// @("ifeq works correctly with no else block and non-empty comparison") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
+@("ifeq works correctly with no else block and non-empty comparison") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
 
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`
+        ]);
+}
 
 
 // @("ifeq works correctly with else block") unittest {
