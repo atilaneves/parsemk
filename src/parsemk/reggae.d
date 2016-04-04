@@ -286,9 +286,13 @@ string eval(in ParseTree expression) {
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
     case "Makefile.Function":
-        return eval(expression.children[0]);
+    case "Makefile.FuncArg":
+    case "Makefile.FuncLastArg":
+        return expression.children.length ? eval(expression.children[0]) : `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Shell":
         return `executeShell(` ~ eval(expression.children[0]) ~ `).output`;
+    case "Makefile.FindString":
+        return `findstring(` ~ eval(expression.children[0]) ~ `, ` ~ eval(expression.children[1]) ~ `)`;
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -520,20 +524,20 @@ string eval(in ParseTree expression) {
             ]);
 }
 
-// @("ifneq findstring") unittest {
-//     auto parseTree = Makefile(
-//         ["uname_M:=x86_64",
-//          "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
-//          "  MODEL:=64",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
-//          `if("" != findstring(consultVar("uname_M"), "x86_64 amd64")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//             ]);
-// }
+@("ifneq findstring") unittest {
+    auto parseTree = Makefile(
+        ["uname_M:=x86_64",
+         "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
+         "  MODEL:=64",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
+         `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
+         `    makeVars["MODEL"] = "64";`,
+         `}`,
+            ]);
+}
 
 // @("override with if") unittest {
 //     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");

@@ -44,8 +44,11 @@ Makefile:
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
-    Function          <- Shell
+    Function          <- Shell / FindString
     Shell             <- "$(shell " NonEmptyString ")"
+    FindString        <- "$(findstring " FuncArg "," FuncLastArg ")"
+    FuncArg           <- Variable / (!"," .)*
+    FuncLastArg       <- Variable / (!")" .)*
     LiteralString     <- NonEmptyString / EmptyString
     NonEmptyString    <- [a-zA-Z_0-9./\- ]+
     EmptyString       <- ""
