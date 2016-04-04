@@ -234,7 +234,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         auto lhs = ifBlock.children[0];
         auto rhs = ifBlock.children[1];
         auto ifStatements = ifBlock.children[2..$];
-        auto operator = `==`;
+        auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
         string[] mapInnerStatements(in ParseTree[] statements) {
             return statements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array;
         }
@@ -507,18 +507,18 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("ifneq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifneq (,$(FOO))",
-//          "  FOO_SET:=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" != consultVar("FOO", "")) {`,
-//          `    makeVars["FOO_SET"] = "1";`,
-//          `}`,
-//             ]);
-// }
+@("ifneq") unittest {
+    auto parseTree = Makefile(
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" != consultVar("FOO", "")) {`,
+         `    makeVars["FOO_SET"] = "1";`,
+         `}`,
+            ]);
+}
 
 // @("ifneq findstring") unittest {
 //     auto parseTree = Makefile(
