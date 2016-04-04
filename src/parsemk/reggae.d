@@ -265,6 +265,11 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         // the slice gets rid of the "#" character
         return [`//` ~ statement.matches[1..$].join];
 
+    case "Makefile.Error":
+        // slice: skip "$(error " and ")"
+        return [`throw new Exception(` ~ resolveVariablesInValue(statement.matches[1 .. $-1].join) ~ `);`];
+
+
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
     }
@@ -488,18 +493,18 @@ string eval(in ParseTree expression) {
             ]);
 }
 
-// @("error function") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  $(error Model is not set for $(foo))",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
-//          `}`,
-//             ]);
-// }
+@("error statement") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set for $(foo))",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("MODEL", "")) {`,
+         `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
+         `}`,
+            ]);
+}
 
 
 // @("ifneq") unittest {

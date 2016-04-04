@@ -40,7 +40,7 @@ Makefile:
     IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
-    SimpleStatement   <- Assignment / Include / Comment / Empty
+    SimpleStatement   <- Assignment / Include / Comment / Error / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
@@ -54,5 +54,6 @@ Makefile:
     Include           <- "include" Spacing FileName
     FileName          <- FileNameChar*
     FileNameChar      <- [a-zA-Z_0-9./]
+    Error             <- Spacing "$(error " (!endOfLine .)*
     Empty             <- Spacing
 `));
