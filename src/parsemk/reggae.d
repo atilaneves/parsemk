@@ -20,6 +20,14 @@ struct Environment {
     bool[string] bindings;
 }
 
+string toReggaeOutput(ParseTree parseTree) {
+    return ([`import reggae;`] ~
+            `string[string] makeVars; // dynamic variables` ~
+            `auto _getBuild() {` ~
+            toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
+            `}`).join("\n");
+}
+
 string[] toReggaeLines(ParseTree parseTree) {
     auto environment = Environment();
     return toReggaeLines(parseTree, environment);
@@ -48,12 +56,12 @@ private string consultMakeVar(in string var) {
     return `makeVars["` ~ var ~ `"]`;
 }
 
-private string[] introduceNewBinding(ref Environment environment, in string var, in string val) {
+private string[] newMakeVar(ref Environment environment, in string var, in string val) {
     environment.bindings[var] = true;
     return [consultMakeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
-
+// resolve variables (e.g. $(FOO)) and make built-in functions such as $(shell)
 private string resolveVariablesInValue(in string val) {
     string replacement = val;
 
@@ -74,19 +82,18 @@ private string unsigil(in string var) {
     return var[2 .. $ - 1];
 }
 
-private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool newBinding) {
+private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool topLevel) {
     auto assignment = element.children[0];
 
     auto var   = assignment.matches[0];
     auto value = "";
     if(assignment.matches.length > 3) {
-        // get rid of $( and ) (2 to -1)
         value = assignment.matches[2 .. $-1].join;
     }
     value = resolveVariablesInValue(value);
-    return newBinding
-        ? introduceNewBinding(environment, var, value)
-        : introduceNewBinding(environment, var, `userVars.get("` ~ var ~ `", ` ~ value ~ `)`);
+    return topLevel
+        ? newMakeVar(environment, var, `userVars.get("` ~ var ~ `", ` ~ value ~ `)`)
+        : newMakeVar(environment, var, value);
 }
 
 
@@ -94,8 +101,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
     case "Makefile.RecursiveAssignment":
-        auto newBinding = !topLevel;
-        return assignmentToReggae(element, environment, newBinding);
+        return assignmentToReggae(element, environment, topLevel);
 
     case "Makefile.Include":
         auto include = element.children[0];
@@ -144,14 +150,6 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ element.children[0].name);
     }
-}
-
-string toReggaeOutput(ParseTree parseTree) {
-    return ([`import reggae;`] ~
-            `string[string] makeVars; // dynamic variables` ~
-            `auto _getBuild() {` ~
-            toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
-            `}`).join("\n");
 }
 
 
