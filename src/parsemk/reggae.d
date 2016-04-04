@@ -116,6 +116,11 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     case "Makefile.Line":
         return elementToReggae(element.children[0], environment, topLevel);
 
+    case "Makefile.Error":
+        auto error = element.children[0];
+        // slice: skip "$(error " and ")\n"
+        return [`throw new Exception("` ~ element.matches[1 .. $-2].join ~ `");`];
+
     case "Makefile.ConditionBlock":
         auto cond = element.children[0];
         auto ifBlock = cond.children[0];
@@ -331,6 +336,19 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    if(makeVars["OS"] == "solaris") {`,
          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
          `    }`,
+         `}`,
+            ]);
+}
+
+@("error function") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set)",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == userVars.get("MODEL", "")) {`,
+         `    throw new Exception("Model is not set");`,
          `}`,
             ]);
 }

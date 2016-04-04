@@ -24,9 +24,9 @@ ifeq (,$(OS))
   ifeq (SunOS,$(uname_S))
     OS:=solaris
   endif
-#   ifeq (,$(OS))
-# # TODO    $(error Unrecognized or unsupported OS for uname: $(uname_S))
-#   endif
+  ifeq (,$(OS))
+    $(error Unrecognized or unsupported OS for uname: $(uname_S))
+  endif
 endif
 
 # When running make from XCode it may set environment var OS=MACOS.
