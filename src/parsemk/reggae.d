@@ -271,6 +271,8 @@ string eval(in ParseTree expression) {
         return eval(expression.children[0]);
     case "Makefile.LiteralString":
         return `"` ~ expression.matches.join ~ `"`;
+    case "Makefile.Variable":
+        return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -332,18 +334,18 @@ string eval(in ParseTree expression) {
         ]);
 }
 
-// @("ifeq works correctly with no else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+@("ifeq works correctly with no else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`
+        ]);
+}
 
 // @("ifeq works correctly with no else block and non-empty comparison") unittest {
 //     auto parseTree = Makefile(
