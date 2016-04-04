@@ -237,6 +237,12 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
             ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
             : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
 
+    case "Makefile.Include":
+        auto fileNameTree = statement.children[0];
+        auto fileName = fileNameTree.matches.join;
+        auto input = cast(string)read(fileName);
+        return toReggaeLines(Makefile(input));
+
     case "Makefile.Comment":
         // the slice gets rid of the "#" character
         return [`//` ~ statement.matches[1..$].join];
@@ -288,17 +294,17 @@ string eval(in ParseTree expression) {
         [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
 }
 
-// @Serial
-// @("includes are expanded in place") unittest {
-//     auto fileName = "/tmp/inner.mk";
-//     {
-//         auto file = File(fileName, "w");
-//         file.writeln("OS:=solaris");
-//     }
-//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["OS"] = consultVar("OS", "solaris");`]);
-// }
+@Serial
+@("includes are expanded in place") unittest {
+    auto fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("OS:=solaris");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["OS"] = consultVar("OS", "solaris");`]);
+}
 
 // @("ifeq works correctly with no else block") unittest {
 //     auto parseTree = Makefile(
