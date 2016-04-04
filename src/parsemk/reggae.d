@@ -24,16 +24,16 @@ string toReggaeOutput(ParseTree parseTree) {
     return ([`import reggae;`] ~
              `import std.algorithm;` ~
              `string[string] makeVars; // dynamic variables` ~
-            `string consultVar(in string var) {` ~
-            `    return var in makeVars ? makeVars[var] : userVars.get(var, "");` ~
-            `}` ~
-            `// implementation of GNU make $(findstring)` ~
-            `string findstring(in string needle, in string haystack) {` ~
-            `    return haystack.canFind(needle) ? needle : "";` ~
-            `}` ~
-            `auto _getBuild() {` ~
-            toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
-            `}`).join("\n");
+             `string consultVar(in string var, in string default_ = "") {` ~
+             `    return var in makeVars ? makeVars[var] : userVars.get(var, default_);` ~
+             `}` ~
+             `// implementation of GNU make $(findstring)` ~
+             `string findstring(in string needle, in string haystack) {` ~
+             `    return haystack.canFind(needle) ? needle : "";` ~
+             `}` ~
+             `auto _getBuild() {` ~
+             toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
+             `}`).join("\n");
 }
 
 string[] toReggaeLines(ParseTree parseTree) {
@@ -101,7 +101,7 @@ private string[] assignmentToReggae(in ParseTree element, ref Environment enviro
     }
     value = resolveVariablesInValue(value);
     return topLevel
-        ? newMakeVar(environment, var, `userVars.get("` ~ var ~ `", ` ~ value ~ `)`)
+        ? newMakeVar(environment, var, `consultVar("` ~ var ~ `", ` ~ value ~ `)`)
         : newMakeVar(environment, var, value);
 }
 
@@ -175,7 +175,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
             name = unsigil(name);
             return name in environment.bindings
                                ? consultMakeVar(name)
-                               : `userVars.get("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
+                               : `consultVar("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
         }
 
         lhs = lookup(ifBlock.children[0], lhs);
@@ -207,13 +207,13 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
 @("Variable assignment with := to auto QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = userVars.get("QUIET", "true");`]);
+        [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
 }
 
 @("Variable assignment with := to auto FOO") unittest {
     auto parseTree = Makefile("FOO:=bar\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = userVars.get("FOO", "bar");`]);
+        [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
 }
 
 @("Comments are ignored") unittest {
@@ -221,14 +221,14 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         "# this is a comment\n"
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = userVars.get("QUIET", "true");`]);
+        [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
 }
 
 
 @("Variables can be assigned to nothing") unittest {
     auto parseTree = Makefile("QUIET:=\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = userVars.get("QUIET", "");`]);
+        [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
 }
 
 @Serial
@@ -240,7 +240,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["OS"] = userVars.get("OS", "solaris");`]);
+        [`makeVars["OS"] = consultVar("OS", "solaris");`]);
 }
 
 @("ifeq works correctly with no else block") unittest {
@@ -250,7 +250,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("OS", "")) {`,
+        [`if("" == consultVar("OS", "")) {`,
          `    makeVars["OS"] = "osx";`,
          `}`
         ]);
@@ -264,7 +264,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
             ].join("\n") ~ "\n");
 
     toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == userVars.get("OS", "")) {`,
+        [`if("MACOS" == consultVar("OS", "")) {`,
          `    makeVars["OS"] = "osx";`,
          `}`
         ]);
@@ -282,7 +282,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
             ].join("\n") ~ "\n");
 
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("BUILD", "")) {`,
+        [`if("" == consultVar("BUILD", "")) {`,
          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
          `    makeVars["BUILD"] = "release";`,
          `} else {`,
@@ -302,7 +302,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == userVars.get("OS", "")) {`,
+        [`if("MACOS" == consultVar("OS", "")) {`,
          `    makeVars["OS"] = "osx";`,
          `}`]);
 }
@@ -317,7 +317,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("OS", "")) {`,
+        [`if("" == consultVar("OS", "")) {`,
          `    makeVars["uname_S"] = "Linux";`,
          `    if("Darwin" == makeVars["uname_S"]) {`,
          `        makeVars["OS"] = "osx";`,
@@ -335,10 +335,10 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "MODEL_FLAG:=-m$(MODEL)",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("MODEL", "")) {`,
+        [`if("" == consultVar("MODEL", "")) {`,
          `    makeVars["MODEL"] = "64";`,
          `}`,
-         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ consultVar("MODEL"));`,
+         `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL"));`,
             ]);
 }
 
@@ -353,7 +353,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("OS", "")) {`,
+        [`if("" == consultVar("OS", "")) {`,
          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
          `    if("Darwin" == makeVars["uname_S"]) {`,
          `        makeVars["OS"] = "osx";`,
@@ -375,10 +375,10 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
         ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == userVars.get("OS", "")) {`,
+        [`if("MACOS" == consultVar("OS", "")) {`,
          `    makeVars["OS"] = "osx";`,
          `}`,
-         `if("" == userVars.get("MODEL", "")) {`,
+         `if("" == consultVar("MODEL", "")) {`,
          `    if(makeVars["OS"] == "solaris") {`,
          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
          `    }`,
@@ -393,7 +393,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" == userVars.get("MODEL", "")) {`,
+        [`if("" == consultVar("MODEL", "")) {`,
          `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
          `}`,
             ]);
@@ -407,7 +407,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`if("" != userVars.get("FOO", "")) {`,
+        [`if("" != consultVar("FOO", "")) {`,
          `    makeVars["FOO_SET"] = "1";`,
          `}`,
             ]);
@@ -421,7 +421,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["uname_M"] = userVars.get("uname_M", "x86_64");`,
+        [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
          `if("" != findstring(consultVar("uname_M"), "x86_64 amd64")) {`,
          `    makeVars["MODEL"] = "64";`,
          `}`,
