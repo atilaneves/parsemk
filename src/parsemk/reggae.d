@@ -387,21 +387,21 @@ string eval(in ParseTree expression) {
         ]);
 }
 
-// @Serial
-// @("includes with ifeq are expanded in place") unittest {
-//     auto fileName = "/tmp/inner.mk";
-//     {
-//         auto file = File(fileName, "w");
-//         file.writeln("ifeq (MACOS,$(OS))");
-//         file.writeln("  OS:=osx");
-//         file.writeln("endif");
-//     }
-//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`]);
-// }
+@Serial
+@("includes with ifeq are expanded in place") unittest {
+    auto fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("ifeq (MACOS,$(OS))");
+        file.writeln("  OS:=osx");
+        file.writeln("endif");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`]);
+}
 
 // @("nested ifeq") unittest {
 //     auto parseTree = Makefile(
