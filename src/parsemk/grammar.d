@@ -40,13 +40,14 @@ Makefile:
     IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
-    SimpleStatement   <- Assignment / Include / Comment / Error / Empty
+    SimpleStatement   <- Assignment / Include / Comment / Error / Override / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
-    Function          <- Shell / FindString
+    Function          <- Shell / FindString / IfFunc
     Shell             <- "$(shell " NonEmptyString ")"
     FindString        <- "$(findstring " FuncArg "," FuncLastArg ")"
+    IfFunc            <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
     FuncArg           <- Variable / (!"," .)*
     FuncLastArg       <- Variable / (!")" .)*
     LiteralString     <- NonEmptyString / EmptyString
@@ -58,5 +59,6 @@ Makefile:
     FileName          <- FileNameChar*
     FileNameChar      <- [a-zA-Z_0-9./]
     Error             <- Spacing "$(error " (!endOfLine .)*
+    Override          <- "override " VariableDecl ("=" / ":=") Expression
     Empty             <- Spacing
 `));

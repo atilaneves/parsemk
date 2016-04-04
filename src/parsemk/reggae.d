@@ -255,6 +255,11 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
             ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
             : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
 
+    case "Makefile.Override":
+        auto var = statement.children[0].matches.join;
+        auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
+        return [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
+
     case "Makefile.Include":
         auto fileNameTree = statement.children[0];
         auto fileName = fileNameTree.matches.join;
@@ -268,7 +273,6 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     case "Makefile.Error":
         // slice: skip "$(error " and ")"
         return [`throw new Exception(` ~ resolveVariablesInValue(statement.matches[1 .. $-1].join) ~ `);`];
-
 
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
@@ -293,6 +297,11 @@ string eval(in ParseTree expression) {
         return `executeShell(` ~ eval(expression.children[0]) ~ `).output`;
     case "Makefile.FindString":
         return `findstring(` ~ eval(expression.children[0]) ~ `, ` ~ eval(expression.children[1]) ~ `)`;
+    case "Makefile.IfFunc":
+        auto cond = eval(expression.children[0]);
+        auto trueBranch = eval(expression.children[1]);
+        auto falseBranch = `""`;
+        return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -539,10 +548,9 @@ string eval(in ParseTree expression) {
             ]);
 }
 
-// @("override with if") unittest {
-//     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["PIC"] = consultVar("PIC") ? "-fPIC" : "";`,
-//             ]);
-
-// }
+@("override with if") unittest {
+    auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
+            ]);
+}
