@@ -16,9 +16,6 @@ else {
     enum Serial;
 }
 
-struct Environment {
-    bool[string] bindings;
-}
 
 string toReggaeOutput(ParseTree parseTree) {
     return q{
@@ -41,11 +38,6 @@ auto _getBuild() }
 }
 
 string[] toReggaeLines(ParseTree parseTree) {
-    auto environment = Environment();
-    return toReggaeLines(parseTree, environment);
-}
-
-string[] toReggaeLines(ParseTree parseTree, ref Environment environment) {
     enforce(parseTree.name == "Makefile", "Unexpected parse tree " ~ parseTree.name);
     enforce(parseTree.children.length == 1);
     parseTree = parseTree.children[0];
@@ -57,7 +49,7 @@ string[] toReggaeLines(ParseTree parseTree, ref Environment environment) {
 
     foreach(element; parseTree.children) {
         enforce(element.name == "Makefile.Element", "Unexpected parse tree " ~ element.name);
-        elements ~= elementToReggae(element, environment);
+        elements ~= elementToReggae(element);
     }
 
     return elements;
@@ -69,8 +61,7 @@ private string consultMakeVar(in string var) {
 }
 
 
-private string[] newMakeVar(ref Environment environment, in string var, in string val) {
-    environment.bindings[var] = true;
+private string[] newMakeVar(in string var, in string val) {
     return [consultMakeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
@@ -95,7 +86,7 @@ private string unsigil(in string var) {
     return var[2 .. $ - 1];
 }
 
-private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool topLevel) {
+private string[] assignmentToReggae(in ParseTree element, bool topLevel) {
     auto assignment = element.children[0];
 
     auto var   = assignment.matches[0];
@@ -105,29 +96,29 @@ private string[] assignmentToReggae(in ParseTree element, ref Environment enviro
     }
     value = resolveVariablesInValue(value);
     return topLevel
-        ? newMakeVar(environment, var, `consultVar("` ~ var ~ `", ` ~ value ~ `)`)
-        : newMakeVar(environment, var, value);
+        ? newMakeVar(var, `consultVar("` ~ var ~ `", ` ~ value ~ `)`)
+        : newMakeVar(var, value);
 }
 
 
-string[] elementToReggae(in ParseTree element, ref Environment environment, bool topLevel = true) {
+string[] elementToReggae(in ParseTree element, bool topLevel = true) {
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
     case "Makefile.RecursiveAssignment":
-        return assignmentToReggae(element, environment, topLevel);
+        return assignmentToReggae(element, topLevel);
 
     case "Makefile.Include":
         auto include = element.children[0];
         auto filenameNode = include.children[0];
         auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
         auto input = cast(string)read(fileName);
-        return toReggaeLines(Makefile(input), environment);
+        return toReggaeLines(Makefile(input));
 
     case "Makefile.Ignore":
         return [];
 
     case "Makefile.Line":
-        return elementToReggae(element.children[0], environment, topLevel);
+        return elementToReggae(element.children[0], topLevel);
 
     case "Makefile.Error":
         auto error = element.children[0];
@@ -138,7 +129,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         auto override_ = element.children[0];
         auto varDecl = override_.children[0];
         auto varVal  = override_.children[1];
-        return [`makeVars["` ~ varDecl.matches.join ~ `"] = ` ~ elementToReggae(varVal, environment, topLevel).join ~ `;`];
+        return [`makeVars["` ~ varDecl.matches.join ~ `"] = ` ~ elementToReggae(varVal, topLevel).join ~ `;`];
 
     case "Makefile.IfFunc":
         auto ifFunc = element.children[0];
@@ -177,9 +168,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
             }
 
             name = unsigil(name);
-            return name in environment.bindings
-                               ? consultMakeVar(name)
-                               : `consultVar("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
+            return `consultVar("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
         }
 
         lhs = lookup(ifBlock.children[0], lhs);
@@ -190,7 +179,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         auto elseElements = cond.children.length > 2 ? cond.children[1].children : [];
 
         string[] flatMapToReggae(in ParseTree[] elements) {
-            return elements.map!(a => elementToReggae(a, environment, false)).join.map!(a => "    " ~ a).array;
+            return elements.map!(a => elementToReggae(a, false)).join.map!(a => "    " ~ a).array;
         }
 
         auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
@@ -323,7 +312,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == consultVar("OS", "")) {`,
          `    makeVars["uname_S"] = "Linux";`,
-         `    if("Darwin" == makeVars["uname_S"]) {`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
          `        makeVars["OS"] = "osx";`,
          `    }`,
          `}`,
@@ -359,7 +348,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == consultVar("OS", "")) {`,
          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-         `    if("Darwin" == makeVars["uname_S"]) {`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
          `        makeVars["OS"] = "osx";`,
          `    }`,
          `}`,
@@ -383,7 +372,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    makeVars["OS"] = "osx";`,
          `}`,
          `if("" == consultVar("MODEL", "")) {`,
-         `    if(makeVars["OS"] == "solaris") {`,
+         `    if(consultVar("OS", "") == "solaris") {`,
          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
          `    }`,
          `}`,
