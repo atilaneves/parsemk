@@ -228,12 +228,19 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return statementToReggaeLines(statement.children[0], topLevel);
 
     case "Makefile.Assignment":
-        writeln("assignment. top? ", topLevel);
+        // assignments at top-level need to consult userVars in order for
+        // the values to be overridden at the command line.
+        // assignments elsewhere unconditionally set the variable
         auto var = statement.children[0].matches.join;
         auto val = eval(statement.children[1]);
         return topLevel
             ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
             : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
+
+    case "Makefile.Comment":
+        // the slice gets rid of the "#" character
+        return [`//` ~ statement.matches[1..$].join];
+
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
     }
@@ -262,14 +269,16 @@ string eval(in ParseTree expression) {
         [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
 }
 
-// @("Comments are not ignored") unittest {
-//     auto parseTree = Makefile(
-//         "# this is a comment\n"
-//         "QUIET:=true\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`// this is a comment`,
-//          `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
-// }
+@("Comments are not ignored") unittest {
+    auto parseTree = Makefile(
+        "# this is a comment\n"
+        "\n"
+        "\n"
+        "QUIET:=true\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`// this is a comment`,
+         `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
+}
 
 
 // @("Variables can be assigned to nothing") unittest {

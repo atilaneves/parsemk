@@ -35,10 +35,11 @@ Makefile:
     Statements        <- Statement*
     Statement         <- CompoundStatement / SimpleStatement endOfLine
     CompoundStatement <- "foobar"
-    SimpleStatement   <- Assignment / Empty
+    SimpleStatement   <- Assignment / Comment / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- LiteralString
     LiteralString     <- [a-zA-Z_0-9./]*
+    Comment           <- Spacing "#" (!endOfLine .)*
     Empty             <- Spacing
 `));
