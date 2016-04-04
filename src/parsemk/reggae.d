@@ -22,15 +22,15 @@ struct Environment {
 
 string toReggaeOutput(ParseTree parseTree) {
     return ([`import reggae;`] ~
-            `import std.algorithm;` ~
-            `string[string] makeVars; // dynamic variables` ~
+             `import std.algorithm;` ~
+             `string[string] makeVars; // dynamic variables` ~
             `string consultVar(in string var) {` ~
             `    return var in makeVars ? makeVars[var] : userVars.get(var, "");` ~
             `}` ~
-            `// implementation of GNU make $(findstring)`
+            `// implementation of GNU make $(findstring)` ~
             `string findstring(in string needle, in string haystack) {` ~
-            `    return haystack.canFind(needle) ? needle : "";`,
-            `}`,
+            `    return haystack.canFind(needle) ? needle : "";` ~
+            `}` ~
             `auto _getBuild() {` ~
             toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
             `}`).join("\n");
@@ -410,5 +410,4 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    makeVars["MODEL"] = "64";`,
          `}`,
             ]);
-
 }
