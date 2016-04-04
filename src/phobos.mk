@@ -43,3 +43,12 @@ ifneq ($(BUILD),release)
         $(error Unrecognized BUILD=$(BUILD), must be 'debug' or 'release')
     endif
 endif
+
+override PIC:=$(if $(PIC),-fPIC,)
+
+# Configurable stuff that's rarely edited
+INSTALL_DIR = ../install
+DRUNTIME_PATH = ../druntime
+ZIPFILE = phobos.zip
+ROOT_OF_THEM_ALL = generated
+ROOT = $(ROOT_OF_THEM_ALL)/$(OS)/$(BUILD)/$(MODEL)

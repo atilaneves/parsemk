@@ -17,8 +17,8 @@ Makefile:
     FindStringHaystack  <- Variable / (!")" .)*
     Variable            <- "$(" (!")" .)* ")"
     EndIf               <- Spacing "endif" endOfLine
-    SimpleAssignment    <- Spacing VariableDecl ":=" (!endOfLine .)* endOfLine
-    RecursiveAssignment <- Spacing VariableDecl "=" (!endOfLine .)* endOfLine
+    SimpleAssignment    <- Spacing VariableDecl Spacing ":=" (!endOfLine .)* endOfLine
+    RecursiveAssignment <- Spacing VariableDecl Spacing "=" Spacing? (!endOfLine .)* endOfLine
     VariableDecl        <- identifier
     VariableValue       <- IfFunc / (!endOfLine .)* endOfLine
     IfFunc              <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")" endOfLine
