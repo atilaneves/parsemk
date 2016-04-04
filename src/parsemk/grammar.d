@@ -43,8 +43,10 @@ Makefile:
     SimpleStatement   <- Assignment / Include / Comment / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
-    Expression        <- Variable / LiteralString
-    LiteralString     <- [a-zA-Z_0-9./]+ / ""
+    Expression        <- NonEmptyString Variable / Variable / LiteralString
+    LiteralString     <- NonEmptyString / EmptyString
+    NonEmptyString    <- [a-zA-Z_0-9./\-]+
+    EmptyString       <- ""
     Variable          <- "$(" (!")" .)* ")"
     Comment           <- Spacing "#" (!endOfLine .)*
     Include           <- "include" Spacing FileName

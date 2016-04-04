@@ -273,8 +273,10 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
 string eval(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
-        return eval(expression.children[0]);
     case "Makefile.LiteralString":
+        return expression.children.map!eval.join(` ~ `);
+    case "Makefile.NonEmptyString":
+    case "Makefile.EmptyString":
         return `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
@@ -423,20 +425,20 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("Refer to declared variable") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  MODEL:=64",
-//          "endif",
-//          "MODEL_FLAG:=-m$(MODEL)",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//          `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL"));`,
-//             ]);
-// }
+@("Refer to declared variable") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("MODEL", "")) {`,
+         `    makeVars["MODEL"] = "64";`,
+         `}`,
+         `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
+            ]);
+}
 
 
 // @("shell commands get translated to a module constructor") unittest {
