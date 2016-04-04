@@ -9,13 +9,17 @@ Makefile:
     Line                <- SimpleAssignment / RecursiveAssignment / Error / Include / Ignore
     ConditionBlock      <- (IfEqual / IfNotEqual) Else? EndIf
     Else                <- Spacing "else" endOfLine Element+
-    IfEqual             <- Spacing "ifeq" Spacing "(" VarStringEmpty "," VarStringEmpty ")" endOfLine Element+
-    IfNotEqual          <- Spacing "ifneq" Spacing "(" VarStringEmpty "," VarStringEmpty ")" endOfLine Element+
-    VarStringEmpty      <- Spacing "$(" (!")" .)* ")" / Spacing identifier / ""
+    IfEqual             <- Spacing "ifeq" Spacing "(" IfArg "," IfArg ")" endOfLine Element+
+    IfNotEqual          <- Spacing "ifneq" Spacing "(" IfArg "," IfArg ")" endOfLine Element+
+    IfArg               <- Spacing FindString / Spacing "$(" (!")" .)* ")" / Spacing identifier / ""
+    FindString          <- "$(findstring " FindStringNeedle "," FindStringHaystack ")"
+    FindStringNeedle    <- Variable / (!"," .)*
+    FindStringHaystack  <- Variable / (!")" .)*
+    Variable            <- "$(" (!")" .)* ")"
     EndIf               <- Spacing "endif" endOfLine
-    SimpleAssignment    <- Spacing Variable ":=" (!endOfLine .)* endOfLine
-    RecursiveAssignment <- Spacing Variable "=" (!endOfLine .)* endOfLine
-    Variable            <- identifier
+    SimpleAssignment    <- Spacing VariableDecl ":=" (!endOfLine .)* endOfLine
+    RecursiveAssignment <- Spacing VariableDecl "=" (!endOfLine .)* endOfLine
+    VariableDecl        <- identifier
     Include             <- "include" Spacing FileName endOfLine
     FileName            <- FileNameChar*
     FileNameChar        <- [a-zA-Z_0-9./]

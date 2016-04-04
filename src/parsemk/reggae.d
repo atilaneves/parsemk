@@ -22,10 +22,15 @@ struct Environment {
 
 string toReggaeOutput(ParseTree parseTree) {
     return ([`import reggae;`] ~
+            `import std.algorithm;` ~
             `string[string] makeVars; // dynamic variables` ~
             `string consultVar(in string var) {` ~
             `    return var in makeVars ? makeVars[var] : userVars.get(var, "");` ~
             `}` ~
+            `// implementation of GNU make $(findstring)`
+            `string findstring(in string needle, in string haystack) {` ~
+            `    return haystack.canFind(needle) ? needle : "";`,
+            `}`,
             `auto _getBuild() {` ~
             toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
             `}`).join("\n");
@@ -129,18 +134,38 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         auto cond = element.children[0];
         auto ifBlock = cond.children[0];
 
-        string lookup(string name) {
+        auto lhs = ifBlock.children[0].matches.join;
+        auto rhs = ifBlock.children[1].matches.join;
+
+        string findstringArg(in ParseTree arg) {
+            return arg.children.any!(a => a.name == "Makefile.Variable")
+                ? `consultVar("` ~ arg.matches.join.unsigil ~ `")`
+                : `"` ~ arg.matches.join ~ `"`;
+        }
+
+        string findstring(in ParseTree findStr, string name) {
+            auto needle = findStr.children[0];
+            auto haystack = findStr.children[1];
+            return `findstring(` ~ findstringArg(needle) ~ `, ` ~ findstringArg(haystack) ~ `)`;
+        }
+
+        string lookup(in ParseTree ifArg, string name) {
             if(!name.startsWith("$(")) return `"` ~ name ~ `"`;
+
+            if(ifArg.children.any!(a => a.name == "Makefile.FindString")) {
+                return findstring(ifArg.children[0], name);
+            }
+
             name = unsigil(name);
             return name in environment.bindings
                                ? consultMakeVar(name)
                                : `userVars.get("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
         }
 
-        auto lhs = lookup(ifBlock.children[0].matches.join);
-        auto rhs = lookup(ifBlock.children[1].matches.join);
+        lhs = lookup(ifBlock.children[0], lhs);
+        rhs = lookup(ifBlock.children[1], rhs);
 
-        // 2: skip the two sides (lhs, rhs) being compared
+        // 2..$: skip the two sides (lhs, rhs) being compared
         auto ifElements = ifBlock.children[2..$];
         auto elseElements = cond.children.length > 2 ? cond.children[1].children : [];
 
@@ -370,4 +395,20 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    makeVars["FOO_SET"] = "1";`,
          `}`,
             ]);
+}
+
+@("ifneq findstring") unittest {
+    auto parseTree = Makefile(
+        ["uname_M:=x86_64",
+         "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
+         "  MODEL:=64",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["uname_M"] = userVars.get("uname_M", "x86_64");`,
+         `if("" != findstring(consultVar("uname_M"), "x86_64 amd64")) {`,
+         `    makeVars["MODEL"] = "64";`,
+         `}`,
+            ]);
+
 }
