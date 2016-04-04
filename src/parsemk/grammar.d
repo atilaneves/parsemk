@@ -43,9 +43,11 @@ Makefile:
     SimpleStatement   <- Assignment / Include / Comment / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
-    Expression        <- NonEmptyString Variable / Variable / LiteralString
+    Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
+    Function          <- Shell
+    Shell             <- "$(shell " NonEmptyString ")"
     LiteralString     <- NonEmptyString / EmptyString
-    NonEmptyString    <- [a-zA-Z_0-9./\-]+
+    NonEmptyString    <- [a-zA-Z_0-9./\- ]+
     EmptyString       <- ""
     Variable          <- "$(" (!")" .)* ")"
     Comment           <- Spacing "#" (!endOfLine .)*

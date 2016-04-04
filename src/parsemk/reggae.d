@@ -280,6 +280,10 @@ string eval(in ParseTree expression) {
         return `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
+    case "Makefile.Function":
+        return eval(expression.children[0]);
+    case "Makefile.Shell":
+        return `executeShell(` ~ eval(expression.children[0]) ~ `).output`;
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -441,24 +445,24 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("shell commands get translated to a module constructor") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("shell commands") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["uname_S"] = executeShell("uname -s").output;`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
+         `        makeVars["OS"] = "osx";`,
+         `    }`,
+         `}`,
+            ]);
+}
 
 
 // @("ifeq with space and variable on the left side") unittest {
