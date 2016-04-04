@@ -117,8 +117,12 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         auto input = cast(string)read(fileName);
         return toReggaeLines(Makefile(input));
 
-    case "Makefile.Ignore":
+    case "Makefile.Empty":
         return [];
+
+    case "Makefile.Comment":
+        auto comment = element.children[0];
+        return [`//` ~ comment.matches[1..$-1].join];
 
     case "Makefile.Line":
         return elementToReggae(element.children[0], topLevel);
@@ -212,12 +216,13 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
 }
 
-@("Comments are ignored") unittest {
+@("Comments are not ignored") unittest {
     auto parseTree = Makefile(
         "# this is a comment\n"
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
+        [`// this is a comment`,
+         `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
 }
 
 
