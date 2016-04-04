@@ -9,8 +9,9 @@ Makefile:
     Line                <- SimpleAssignment / RecursiveAssignment / Include / Ignore
     ConditionBlock      <- IfEqual Else? EndIf
     Else                <- Spacing "else" endOfLine Element+
-    IfEqual             <- Spacing "ifeq" Spacing "(" (!"," .)* ",$(" identifier ")" ")" endOfLine Element+
-    CloseParen          <- ")"
+    #IfEqual             <- Spacing "ifeq" Spacing "(" (!"," .)* "," Spacing "$(" identifier ")" ")" endOfLine Element+
+    IfEqual             <- Spacing "ifeq" Spacing "(" VarStringEmpty "," VarStringEmpty ")" endOfLine Element+
+    VarStringEmpty      <- Spacing "$(" (!")" .)* ")" / Spacing identifier / ""
     EndIf               <- Spacing "endif" endOfLine
     SimpleAssignment    <- Spacing Variable ":=" (!endOfLine .)* endOfLine
     RecursiveAssignment <- Spacing Variable "=" (!endOfLine .)* endOfLine
