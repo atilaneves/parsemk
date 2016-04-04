@@ -465,28 +465,28 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("ifeq with space and variable on the left side") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "  OS:=osx",
-//          "endif",
-//          "ifeq (,$(MODEL))",
-//          "  ifeq ($(OS), solaris)",
-//          "    uname_M:=$(shell isainfo -n)",
-//          "  endif",
-//          "endif",
-//         ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`,
-//          `if("" == consultVar("MODEL", "")) {`,
-//          `    if(consultVar("OS", "") == "solaris") {`,
-//          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("ifeq with space and variable on the left side") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (MACOS,$(OS))",
+         "  OS:=osx",
+         "endif",
+         "ifeq (,$(MODEL))",
+         "  ifeq ($(OS), solaris)",
+         "    uname_M:=$(shell isainfo -n)",
+         "  endif",
+         "endif",
+        ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`,
+         `if("" == consultVar("MODEL", "")) {`,
+         `    if(consultVar("OS", "") == "solaris") {`,
+         `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
+         `    }`,
+         `}`,
+            ]);
+}
 
 // @("error function") unittest {
 //     auto parseTree = Makefile(

@@ -36,8 +36,8 @@ Makefile:
     Statement         <- CompoundStatement / SimpleStatement endOfLine
     CompoundStatement <- ConditionBlock
     ConditionBlock    <- (IfEqual / IfNotEqual) Else? EndIf
-    IfEqual           <- Spacing "ifeq" Spacing "(" Expression "," Expression ")" endOfLine Statement+
-    IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Expression ")" endOfLine Statement+
+    IfEqual           <- Spacing "ifeq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
+    IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
     SimpleStatement   <- Assignment / Include / Comment / Empty
