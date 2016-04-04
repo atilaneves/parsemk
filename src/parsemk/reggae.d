@@ -37,26 +37,8 @@ auto _getBuild() }
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
 }
 
-string[] toReggaeLinesOld(ParseTree parseTree) {
-    enforce(parseTree.name == "Makefile", "Unexpected parse tree " ~ parseTree.name);
-    enforce(parseTree.children.length == 1);
-    parseTree = parseTree.children[0];
-
-    enforce(parseTree.name == "Makefile.Elements", "Unexpected parse tree " ~ parseTree.name);
-
-    string[] elements;
-
-
-    foreach(element; parseTree.children) {
-        enforce(element.name == "Makefile.Element", "Unexpected parse tree " ~ element.name);
-        elements ~= elementToReggae(element);
-    }
-
-    return elements;
-}
 
 string[] toReggaeLines(ParseTree parseTree) {
-    writeln(parseTree);
     enforce(parseTree.name == "Makefile", "Unexpected parse tree " ~ parseTree.name);
     enforce(parseTree.children.length == 1);
     parseTree = parseTree.children[0];
@@ -73,152 +55,9 @@ string[] toReggaeLines(ParseTree parseTree) {
     return statements;
 }
 
-
-private string consultMakeVar(in string var) {
-    return `makeVars["` ~ var ~ `"]`;
-}
-
-
-private string[] newMakeVar(in string var, in string val) {
-    return [consultMakeVar(var) ~ ` = ` ~ val ~ `;`];
-}
-
-// resolve variables (e.g. $(FOO)) and make built-in functions such as $(shell)
-private string resolveVariablesInValue(in string val) {
-    string replacement = val;
-
-    auto shellRe = regex(`\$\(shell (.+)\)`, "g");
-    replacement = replacement.replaceAll(shellRe, `" ~ executeShell("$1").output ~ "`);
-
-    auto varRe = regex(`\$\((.+)\)`, "g");
-    replacement = replacement.replaceAll(varRe, `" ~ consultVar("$1") ~ "`);
-
-    auto ret = `"` ~ replacement ~ `"`;
-    ret = ret.replaceAll(regex(`^"" ~ `), "");
-    ret = ret.replaceAll(regex(` ~ ""`), "");
-    return ret;
-}
-
 // e.g. $(FOO) -> FOO
 private string unsigil(in string var) {
     return var[2 .. $ - 1];
-}
-
-// At the top level, (file-scope), assignments need to consult
-// the user-defined variables.
-// At other levels, the assigment is done unconditionally
-private string[] assignmentToReggae(in ParseTree element, bool topLevel) {
-    auto assignment = element.children[0];
-
-    auto var   = assignment.matches[0];
-    auto value = "";
-    if(assignment.matches.length > 3) { //non-empty value
-        value = assignment.matches[2 .. $-1].join;
-    }
-    value = resolveVariablesInValue(value);
-    return topLevel
-        ? newMakeVar(var, `consultVar("` ~ var ~ `", ` ~ value ~ `)`)
-        : newMakeVar(var, value);
-}
-
-
-string[] elementToReggae(in ParseTree element, bool topLevel = true) {
-    switch(element.children[0].name) {
-    case "Makefile.SimpleAssignment":
-    case "Makefile.RecursiveAssignment":
-        return assignmentToReggae(element, topLevel);
-
-    case "Makefile.Include":
-        auto include = element.children[0];
-        auto filenameNode = include.children[0];
-        auto fileName = filenameNode.input[filenameNode.begin .. filenameNode.end];
-        auto input = cast(string)read(fileName);
-        return toReggaeLinesOld(Makefile(input));
-
-    case "Makefile.Empty":
-        return [];
-
-    case "Makefile.Comment":
-        auto comment = element.children[0];
-        return [`//` ~ comment.matches[1..$-1].join];
-
-    case "Makefile.Line":
-        return elementToReggae(element.children[0], topLevel);
-
-    case "Makefile.Error":
-        auto error = element.children[0];
-        // slice: skip "$(error " and ")\n"
-        return [`throw new Exception(` ~ resolveVariablesInValue(element.matches[1 .. $-2].join) ~ `);`];
-
-    case "Makefile.Override":
-        auto override_ = element.children[0];
-        auto varDecl = override_.children[0];
-        auto varVal  = override_.children[1];
-        return [`makeVars["` ~ varDecl.matches.join ~ `"] = ` ~ elementToReggae(varVal, topLevel).join ~ `;`];
-
-    case "Makefile.IfFunc":
-        auto ifFunc = element.children[0];
-        auto cond = ifFunc.children[0].matches.join;
-        auto trueBranch = ifFunc.children[1].matches.join;
-        auto fromTrueBranch = ifFunc.matches.join.find(trueBranch);
-        auto elseBranch = fromTrueBranch.find(",")[1 .. $-1]; //skip "," and ")"
-        return [resolveVariablesInValue(cond) ~ ` ? ` ~
-                resolveVariablesInValue(trueBranch) ~ ` : ` ~
-                resolveVariablesInValue(elseBranch)];
-
-    case "Makefile.ConditionBlock":
-        auto cond = element.children[0];
-        auto ifBlock = cond.children[0];
-
-        auto lhs = ifBlock.children[0].matches.join;
-        auto rhs = ifBlock.children[1].matches.join;
-
-        string findstringArg(in ParseTree arg) {
-            return arg.children.any!(a => a.name == "Makefile.Variable")
-                ? `consultVar("` ~ arg.matches.join.unsigil ~ `")`
-                : `"` ~ arg.matches.join ~ `"`;
-        }
-
-        string findstring(in ParseTree findStr, string name) {
-            auto needle = findStr.children[0];
-            auto haystack = findStr.children[1];
-            return `findstring(` ~ findstringArg(needle) ~ `, ` ~ findstringArg(haystack) ~ `)`;
-        }
-
-        string lookup(in ParseTree ifArg, string name) {
-            if(!name.startsWith("$(")) return `"` ~ name ~ `"`;
-
-            if(ifArg.children.any!(a => a.name == "Makefile.FindString")) {
-                return findstring(ifArg.children[0], name);
-            }
-
-            name = unsigil(name);
-            return `consultVar("` ~ name.replaceAll(regex(`\$\((.+)\)`), `$1`) ~ `", "")`;
-        }
-
-        lhs = lookup(ifBlock.children[0], lhs);
-        rhs = lookup(ifBlock.children[1], rhs);
-
-        // 2..$: skip the two sides (lhs, rhs) being compared
-        auto ifElements = ifBlock.children[2..$];
-        auto elseElements = cond.children.length > 2 ? cond.children[1].children : [];
-
-        string[] flatMapToReggae(in ParseTree[] elements) {
-            return elements.map!(a => elementToReggae(a, false)).join.map!(a => "    " ~ a).array;
-        }
-
-        auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
-        auto elseResult = flatMapToReggae(elseElements);
-        return
-            [`if(` ~ lhs ~ ` ` ~ operator ~ ` ` ~ rhs ~ `) {`] ~
-            flatMapToReggae(ifElements) ~
-            (elseResult.length ? [`} else {`] : []) ~
-            elseResult ~
-            `}`;
-
-    default:
-        throw new Exception("Unknown/Unimplemented parser " ~ element.children[0].name);
-    }
 }
 
 
@@ -246,19 +85,10 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
             `}`;
 
     case "Makefile.Assignment":
-        // assignments at top-level need to consult userVars in order for
-        // the values to be overridden at the command line.
-        // assignments elsewhere unconditionally set the variable
-        auto var = statement.children[0].matches.join;
-        auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
-        return topLevel
-            ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
-            : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
+        return assignmentLines(statement, topLevel);
 
     case "Makefile.Override":
-        auto var = statement.children[0].matches.join;
-        auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
-        return [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
+        return assignmentLines(statement, false);
 
     case "Makefile.Include":
         auto fileNameTree = statement.children[0];
@@ -271,12 +101,22 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [`//` ~ statement.matches[1..$].join];
 
     case "Makefile.Error":
-        // slice: skip "$(error " and ")"
-        return [`throw new Exception(` ~ resolveVariablesInValue(statement.matches[1 .. $-1].join) ~ `);`];
+        return [`throw new Exception(` ~ eval(statement.children[0]) ~ `);`];
 
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
     }
+}
+
+string[] assignmentLines(in ParseTree statement, in bool topLevel) {
+    // assignments at top-level need to consult userVars in order for
+    // the values to be overridden at the command line.
+    // assignments elsewhere unconditionally set the variable
+    auto var = statement.children[0].matches.join;
+    auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
+    return topLevel
+        ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
+        : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
 }
 
 string eval(in ParseTree expression) {
@@ -514,7 +354,7 @@ string eval(in ParseTree expression) {
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == consultVar("MODEL", "")) {`,
-         `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
+         `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
          `}`,
             ]);
 }
