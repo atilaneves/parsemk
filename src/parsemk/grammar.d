@@ -7,9 +7,10 @@ Makefile:
     Elements            <- Element*
     Element             <- ConditionBlock / Line
     Line                <- SimpleAssignment / RecursiveAssignment / Error / Include / Ignore
-    ConditionBlock      <- IfEqual Else? EndIf
+    ConditionBlock      <- (IfEqual / IfNotEqual) Else? EndIf
     Else                <- Spacing "else" endOfLine Element+
     IfEqual             <- Spacing "ifeq" Spacing "(" VarStringEmpty "," VarStringEmpty ")" endOfLine Element+
+    IfNotEqual          <- Spacing "ifneq" Spacing "(" VarStringEmpty "," VarStringEmpty ")" endOfLine Element+
     VarStringEmpty      <- Spacing "$(" (!")" .)* ")" / Spacing identifier / ""
     EndIf               <- Spacing "endif" endOfLine
     SimpleAssignment    <- Spacing Variable ":=" (!endOfLine .)* endOfLine

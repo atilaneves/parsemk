@@ -148,9 +148,10 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
             return elements.map!(a => elementToReggae(a, environment, false)).join.map!(a => "    " ~ a).array;
         }
 
+        auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
         auto elseResult = flatMapToReggae(elseElements);
         return
-            [`if(` ~ lhs ~ ` == ` ~ rhs ~ `) {`] ~
+            [`if(` ~ lhs ~ ` ` ~ operator ~ ` ` ~ rhs ~ `) {`] ~
             flatMapToReggae(ifElements) ~
             (elseResult.length ? [`} else {`] : []) ~
             elseResult ~
@@ -353,6 +354,20 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == userVars.get("MODEL", "")) {`,
          `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
+         `}`,
+            ]);
+}
+
+
+@("ifneq") unittest {
+    auto parseTree = Makefile(
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" != userVars.get("FOO", "")) {`,
+         `    makeVars["FOO_SET"] = "1";`,
          `}`,
             ]);
 }
