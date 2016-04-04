@@ -67,7 +67,7 @@ string[] toReggaeLines(ParseTree parseTree) {
 
     foreach(statement; parseTree.children) {
         enforce(statement.name == "Makefile.Statement", "Unexpected parse tree " ~ statement.name);
-        statements ~= statementToReggaeLines(statement.children[0], true);
+        statements ~= statementToReggaeLines(statement, true);
     }
 
     return statements;
@@ -224,8 +224,21 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
 
 string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     switch(statement.name) {
+    case "Makefile.Statement":
     case "Makefile.SimpleStatement":
+    case "Makefile.CompoundStatement":
         return statementToReggaeLines(statement.children[0], topLevel);
+
+    case "Makefile.ConditionBlock":
+        auto ifBlock = statement.children[0];
+        auto lhs = ifBlock.children[0];
+        auto rhs = ifBlock.children[1];
+        auto ifStatements = ifBlock.children[2..$];
+        auto operator = `==`;
+        return [`if(` ~ eval(lhs) ~ ` ` ~ operator ~ ` ` ~ eval(rhs) ~ `) {`] ~
+            ifStatements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array ~
+            `}`;
+
 
     case "Makefile.Assignment":
         // assignments at top-level need to consult userVars in order for
@@ -304,6 +317,19 @@ string eval(in ParseTree expression) {
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["OS"] = consultVar("OS", "solaris");`]);
+}
+
+@("ifeq works correctly with literals and no else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,foo)",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == "foo") {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`
+        ]);
 }
 
 // @("ifeq works correctly with no else block") unittest {

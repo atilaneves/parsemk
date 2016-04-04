@@ -34,12 +34,17 @@ Makefile:
 
     Statements        <- Statement*
     Statement         <- CompoundStatement / SimpleStatement endOfLine
-    CompoundStatement <- "foobar"
+    CompoundStatement <- ConditionBlock
+    ConditionBlock    <- (IfEqual / IfNotEqual) Else? EndIf
+    IfEqual           <- Spacing "ifeq" Spacing "(" Expression "," Expression ")" endOfLine Statement+
+    IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Expression ")" endOfLine Statement+
+    Else              <- Spacing "else" endOfLine Statement+
+    EndIf             <- Spacing  "endif" endOfLine
     SimpleStatement   <- Assignment / Include / Comment / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- LiteralString
-    LiteralString     <- [a-zA-Z_0-9./]*
+    LiteralString     <- [a-zA-Z_0-9./]+ / ""
     Comment           <- Spacing "#" (!endOfLine .)*
     Include           <- "include" Spacing FileName
     FileName          <- FileNameChar*
