@@ -86,6 +86,9 @@ private string unsigil(in string var) {
     return var[2 .. $ - 1];
 }
 
+// At the top level, (file-scope), assignments need to consult
+// the user-defined variables.
+// At other levels, the assigment is done unconditionally
 private string[] assignmentToReggae(in ParseTree element, bool topLevel) {
     auto assignment = element.children[0];
 
