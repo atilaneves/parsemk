@@ -6,7 +6,7 @@ mixin(pegged.grammar.grammar(`
 Makefile:
     Elements            <- Element*
     Element             <- ConditionBlock / Line
-    Line                <- SimpleAssignment / RecursiveAssignment / Error / Include / Ignore
+    Line                <- SimpleAssignment / RecursiveAssignment / Override / Error / Include / Ignore
     ConditionBlock      <- (IfEqual / IfNotEqual) Else? EndIf
     Else                <- Spacing "else" endOfLine Element+
     IfEqual             <- Spacing "ifeq" Spacing "(" IfArg "," IfArg ")" endOfLine Element+
@@ -20,11 +20,15 @@ Makefile:
     SimpleAssignment    <- Spacing VariableDecl ":=" (!endOfLine .)* endOfLine
     RecursiveAssignment <- Spacing VariableDecl "=" (!endOfLine .)* endOfLine
     VariableDecl        <- identifier
+    VariableValue       <- IfFunc / (!endOfLine .)* endOfLine
+    IfFunc              <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")" endOfLine
+    FuncArg             <- Variable / (!"," .)*
+    FuncLastArg         <- Variable / (!")" .)*
     Include             <- "include" Spacing FileName endOfLine
     FileName            <- FileNameChar*
     FileNameChar        <- [a-zA-Z_0-9./]
     Error               <- Spacing "$(error " (!endOfLine .)* endOfLine
-    VarText             <- "$(" (!")" .)* ")" / .*
+    Override            <- "override " VariableDecl ("=" / ":=") VariableValue
     Ignore              <- Comment / Empty
     Comment             <- Spacing "#" (!endOfLine .)* endOfLine
     Empty               <- endOfLine / Spacing endOfLine

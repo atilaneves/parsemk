@@ -130,6 +130,22 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         // slice: skip "$(error " and ")\n"
         return [`throw new Exception(` ~ resolveVariablesInValue(element.matches[1 .. $-2].join) ~ `);`];
 
+    case "Makefile.Override":
+        auto override_ = element.children[0];
+        auto varDecl = override_.children[0];
+        auto varVal  = override_.children[1];
+        return [`makeVars["` ~ varDecl.matches.join ~ `"] = ` ~ elementToReggae(varVal, environment, topLevel).join ~ `;`];
+
+    case "Makefile.IfFunc":
+        auto ifFunc = element.children[0];
+        auto cond = ifFunc.children[0].matches.join;
+        auto trueBranch = ifFunc.children[1].matches.join;
+        auto fromTrueBranch = ifFunc.matches.join.find(trueBranch);
+        auto elseBranch = fromTrueBranch.find(",")[1 .. $-2]; //skip "," and ")\n"
+        return [resolveVariablesInValue(cond) ~ ` ? ` ~
+                resolveVariablesInValue(trueBranch) ~ ` : ` ~
+                resolveVariablesInValue(elseBranch)];
+
     case "Makefile.ConditionBlock":
         auto cond = element.children[0];
         auto ifBlock = cond.children[0];
@@ -410,4 +426,12 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    makeVars["MODEL"] = "64";`,
          `}`,
             ]);
+}
+
+@("override with if") unittest {
+    auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["PIC"] = consultVar("PIC") ? "-fPIC" : "";`,
+            ]);
+
 }
