@@ -143,7 +143,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         return
             [`if(` ~ lhs ~ ` == ` ~ rhs ~ `) {`] ~
             flatMapToReggae(ifElements) ~
-            (elseResult.length ? [`else {`] : []) ~
+            (elseResult.length ? [`} else {`] : []) ~
             elseResult ~
             `}`;
 
@@ -234,7 +234,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         [`if("" == userVars.get("BUILD", "")) {`,
          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
          `    makeVars["BUILD"] = "release";`,
-         `else {`,
+         `} else {`,
          `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
          `}`
         ]);

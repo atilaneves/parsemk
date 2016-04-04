@@ -36,15 +36,22 @@ ifeq (MACOS,$(OS))
 endif
 
 ifeq (,$(MODEL))
-  # ifeq ($(OS), solaris)
-  #   uname_M:=$(shell isainfo -n)
-  # else
-  #   uname_M:=$(shell uname -m)
-  # endif
-  ifeq ($(OS),solaris)
-  #ifeq (,$(solaris))
-    uname_M:=foo
+  ifeq ($(OS), solaris)
+    uname_M:=$(shell isainfo -n)
+  else
+    uname_M:=$(shell uname -m)
   endif
+  # DELETE
+  MODEL:=64
+  # ifneq (,$(findstring $(uname_M),x86_64 amd64))
+  #   MODEL:=64
+  # endif
+  # ifneq (,$(findstring $(uname_M),i386 i586 i686))
+  #   MODEL:=32
+  # endif
+  # ifeq (,$(MODEL))
+  #   $(error Cannot figure 32/64 model from uname -m: $(uname_M))
+  # endif
 endif
 
 MODEL_FLAG:=-m$(MODEL)
