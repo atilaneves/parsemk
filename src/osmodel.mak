@@ -24,9 +24,9 @@ ifeq (,$(OS))
   ifeq (SunOS,$(uname_S))
     OS:=solaris
   endif
-#   ifeq (,$(OS))
-# # TODO    $(error Unrecognized or unsupported OS for uname: $(uname_S))
-#   endif
+  ifeq (,$(OS))
+    $(error Unrecognized or unsupported OS for uname: $(uname_S))
+  endif
 endif
 
 # When running make from XCode it may set environment var OS=MACOS.
@@ -49,9 +49,9 @@ ifeq (,$(MODEL))
   # ifneq (,$(findstring $(uname_M),i386 i586 i686))
   #   MODEL:=32
   # endif
-  # ifeq (,$(MODEL))
-  #   $(error Cannot figure 32/64 model from uname -m: $(uname_M))
-  # endif
+  ifeq (,$(MODEL))
+    $(error Cannot figure 32/64 model from uname -m: $(uname_M))
+  endif
 endif
 
 MODEL_FLAG:=-m$(MODEL)

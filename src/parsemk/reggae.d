@@ -23,6 +23,9 @@ struct Environment {
 string toReggaeOutput(ParseTree parseTree) {
     return ([`import reggae;`] ~
             `string[string] makeVars; // dynamic variables` ~
+            `string consultVar(in string var) {` ~
+            `    return var in makeVars ? makeVars[var] : userVars.get(var, "");` ~
+            `}` ~
             `auto _getBuild() {` ~
             toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
             `}`).join("\n");
@@ -56,6 +59,7 @@ private string consultMakeVar(in string var) {
     return `makeVars["` ~ var ~ `"]`;
 }
 
+
 private string[] newMakeVar(ref Environment environment, in string var, in string val) {
     environment.bindings[var] = true;
     return [consultMakeVar(var) ~ ` = ` ~ val ~ `;`];
@@ -69,7 +73,7 @@ private string resolveVariablesInValue(in string val) {
     replacement = replacement.replaceAll(shellRe, `" ~ executeShell("$1").output ~ "`);
 
     auto varRe = regex(`\$\((.+)\)`, "g");
-    replacement = replacement.replaceAll(varRe, `" ~ makeVars["$1"] ~ "`);
+    replacement = replacement.replaceAll(varRe, `" ~ consultVar("$1") ~ "`);
 
     auto ret = `"` ~ replacement ~ `"`;
     ret = ret.replaceAll(regex(`^"" ~ `), "");
@@ -115,6 +119,11 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
 
     case "Makefile.Line":
         return elementToReggae(element.children[0], environment, topLevel);
+
+    case "Makefile.Error":
+        auto error = element.children[0];
+        // slice: skip "$(error " and ")\n"
+        return [`throw new Exception(` ~ resolveVariablesInValue(element.matches[1 .. $-2].join) ~ `);`];
 
     case "Makefile.ConditionBlock":
         auto cond = element.children[0];
@@ -287,7 +296,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
         [`if("" == userVars.get("MODEL", "")) {`,
          `    makeVars["MODEL"] = "64";`,
          `}`,
-         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ makeVars["MODEL"]);`,
+         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ consultVar("MODEL"));`,
             ]);
 }
 
@@ -331,6 +340,19 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
          `    if(makeVars["OS"] == "solaris") {`,
          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
          `    }`,
+         `}`,
+            ]);
+}
+
+@("error function") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set for $(foo))",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == userVars.get("MODEL", "")) {`,
+         `    throw new Exception("Model is not set for " ~ consultVar("foo"));`,
          `}`,
             ]);
 }
