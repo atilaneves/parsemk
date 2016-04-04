@@ -7,6 +7,7 @@ import std.exception;
 import std.stdio;
 import std.file;
 import std.algorithm;
+import std.regex;
 
 
 
@@ -43,36 +44,44 @@ string[] toReggaeLines(ParseTree parseTree, ref Environment environment) {
 }
 
 
+private string consultMakeVar(in string var) {
+    return `makeVars["` ~ var ~ `"]`;
+}
+
 private string[] introduceNewBinding(ref Environment environment, in string var, in string val) {
     environment.bindings[var] = true;
-    return ["enum " ~ var ~ ` = ` ~ val ~ `;`];
+    return [consultMakeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
 private string consultBinding(ref Environment environment, in string var, in string val) {
     return var in environment.bindings
-                      ? var
+                      ? consultMakeVar(var)
                       : `userVars.get("` ~ var ~ `", ` ~ val ~ `)`;
 }
 
-private string resolveVariablesInValue(string val) {
-    string ret = `"`;
-    auto varStart = val.countUntil("$(");
+private string resolveVariablesInValue(in string val) {
+    auto re = regex(`\$\((.+)\)`, "g");
+    auto replacement = val.replaceAll(re, `" ~ makeVars["$1"] ~ "`);
+    return `"` ~ replacement ~ `"`;
 
-    if(varStart == -1) return `"` ~ val ~ `"`;
-    while(varStart != -1) {
-        varStart += 2; //skip $(
-        ret ~= val[0 .. varStart - 2] ~ `" ~ `;
-        val = val[varStart .. $];
+    // string ret = `"`;
+    // auto varStart = val.countUntil("$(");
 
-        varStart = val.countUntil(")");
-        ret ~= val[0 .. varStart];
-        val = val[varStart + 1 .. $];
+    // if(varStart == -1) return `"` ~ val ~ `"`;
+    // while(varStart != -1) {
+    //     varStart += 2; //skip $(
+    //     ret ~= val[0 .. varStart - 2] ~ `" ~ `;
+    //     val = val[varStart .. $];
 
-        varStart = val.countUntil("$(");
-        val = val[0 .. $];
-    }
+    //     varStart = val.countUntil(")");
+    //     ret ~= val[0 .. varStart];
+    //     val = val[varStart + 1 .. $];
 
-    return ret ~ val;
+    //     varStart = val.countUntil("$(");
+    //     val = val[0 .. $];
+    // }
+
+    // return ret ~ val;
 }
 
 private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool newBinding) {
@@ -86,7 +95,7 @@ private string[] assignmentToReggae(in ParseTree element, ref Environment enviro
     value = resolveVariablesInValue(value);
     return newBinding
         ? introduceNewBinding(environment, var, value)
-        : ["enum " ~ var ~ ` = userVars.get("` ~ var ~ `", ` ~ value ~ `);`];
+        : [consultMakeVar(var) ~ ` = userVars.get("` ~ var ~ `", ` ~ value ~ `);`];
 }
 
 
@@ -94,11 +103,11 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
     switch(element.children[0].name) {
     case "Makefile.SimpleAssignment":
         auto newBinding = !topLevel;
-        return assignmentToReggae(element, environment, !topLevel);
+        return assignmentToReggae(element, environment, newBinding);
 
     case "Makefile.RecursiveAssignment":
-        auto newBinding = false;
-        return assignmentToReggae(element, environment, !topLevel);
+        auto newBinding = !topLevel;
+        return assignmentToReggae(element, environment, newBinding);
 
     case "Makefile.Include":
         auto include = element.children[0];
@@ -136,7 +145,7 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
 
         auto elseResult = flatMapToReggae(elseElements);
         return
-            [`static if(` ~ consultBinding(environment, var, value) ~ ` == ` ~ value ~ `) {`] ~
+            [`if(` ~ consultBinding(environment, var, value) ~ ` == ` ~ value ~ `) {`] ~
             flatMapToReggae(ifElements) ~
             (elseResult.length ? [`else {`] : []) ~
             elseResult ~
@@ -148,20 +157,24 @@ string[] elementToReggae(in ParseTree element, ref Environment environment, bool
 }
 
 string toReggaeOutput(ParseTree parseTree) {
-    return ([`import reggae;`] ~ toReggaeLines(parseTree)).join("\n");
+    return ([`import reggae;`] ~
+            `string[string] makeVars; // dynamic variables` ~
+            `auto _getBuild() {` ~
+            toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
+            `}`).join("\n");
 }
 
 
-@("Variable assignment with := to enum QUIET") unittest {
+@("Variable assignment with := to auto QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = userVars.get("QUIET", "true");`]);
+        [`auto QUIET = userVars.get("QUIET", "true");`]);
 }
 
-@("Variable assignment with := to enum FOO") unittest {
+@("Variable assignment with := to auto FOO") unittest {
     auto parseTree = Makefile("FOO:=bar\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum FOO = userVars.get("FOO", "bar");`]);
+        [`auto FOO = userVars.get("FOO", "bar");`]);
 }
 
 @("Comments are ignored") unittest {
@@ -169,26 +182,26 @@ string toReggaeOutput(ParseTree parseTree) {
         "# this is a comment\n"
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = userVars.get("QUIET", "true");`]);
+        [`auto QUIET = userVars.get("QUIET", "true");`]);
 }
 
 
 @("Variables can be assigned to nothing") unittest {
     auto parseTree = Makefile("QUIET:=\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum QUIET = userVars.get("QUIET", "");`]);
+        [`auto QUIET = userVars.get("QUIET", "");`]);
 }
 
 @Serial
 @("includes are expanded in place") unittest {
-    enum fileName = "/tmp/inner.mk";
+    auto fileName = "/tmp/inner.mk";
     {
         auto file = File(fileName, "w");
         file.writeln("OS:=solaris");
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`enum OS = userVars.get("OS", "solaris");`]);
+        [`auto OS = userVars.get("OS", "solaris");`]);
 }
 
 @("ifeq works correctly with no else block") unittest {
@@ -199,8 +212,8 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
 
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("OS", "") == "") {`,
-         `    enum OS = "osx";`,
+        [`if(userVars.get("OS", "") == "") {`,
+         `    auto OS = "osx";`,
          `}`
         ]);
 }
@@ -213,8 +226,8 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
 
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
-         `    enum OS = "osx";`,
+        [`if(userVars.get("OS", "MACOS") == "MACOS") {`,
+         `    auto OS = "osx";`,
          `}`
         ]);
 }
@@ -231,18 +244,18 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
 
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("BUILD", "") == "") {`,
-         `    enum BUILD_WAS_SPECIFIED = "0";`,
-         `    enum BUILD = "release";`,
+        [`if(userVars.get("BUILD", "") == "") {`,
+         `    auto BUILD_WAS_SPECIFIED = "0";`,
+         `    auto BUILD = "release";`,
          `else {`,
-         `    enum BUILD_WAS_SPECIFIED = "1";`,
+         `    auto BUILD_WAS_SPECIFIED = "1";`,
          `}`
         ]);
 }
 
 @Serial
 @("includes with ifeq are expanded in place") unittest {
-    enum fileName = "/tmp/inner.mk";
+    auto fileName = "/tmp/inner.mk";
     {
         auto file = File(fileName, "w");
         file.writeln("ifeq (MACOS,$(OS))");
@@ -251,8 +264,8 @@ string toReggaeOutput(ParseTree parseTree) {
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("OS", "MACOS") == "MACOS") {`,
-         `    enum OS = "osx";`,
+        [`if(userVars.get("OS", "MACOS") == "MACOS") {`,
+         `    auto OS = "osx";`,
          `}`]);
 }
 
@@ -266,10 +279,10 @@ string toReggaeOutput(ParseTree parseTree) {
          "endif",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("OS", "") == "") {`,
-         `    enum uname_S = "Linux";`,
-         `    static if(uname_S == "Darwin") {`,
-         `        enum OS = "osx";`,
+        [`if(userVars.get("OS", "") == "") {`,
+         `    auto uname_S = "Linux";`,
+         `    if(uname_S == "Darwin") {`,
+         `        auto OS = "osx";`,
          `    }`,
          `}`,
             ]);
@@ -284,9 +297,31 @@ string toReggaeOutput(ParseTree parseTree) {
          "MODEL_FLAG:=-m$(MODEL)",
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`static if(userVars.get("MODEL", "") == "") {`,
-         `    enum MODEL = "64";`,
+        [`if(userVars.get("MODEL", "") == "") {`,
+         `    auto MODEL = "64";`,
          `}`,
-         `enum MODEL_FLAG = userVars.get("MODEL_FLAG", "-m" ~ MODEL);`,
+         `auto MODEL_FLAG = userVars.get("MODEL_FLAG", "-m" ~ MODEL);`,
             ]);
 }
+
+
+// @("shell commands get translated to a module constructor") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(OS))",
+//          "  uname_S:=$(shell uname -s)",
+//          // "  ifeq (Linux, $(uname_S))",
+//          // "    OS:=linux",
+//          // "  endif",
+//          "endif",
+//         ].join("\n") ~ "\n";
+//         );
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if(userVars.get("OS", "") == "") {`,
+//          `    string uname_S;`,
+//          `    static this() {`,
+//          `        uname_S = executeShell("uname -s");`,
+//          `    }`,
+//          //`    if(uname_S)`
+//          `}`,
+//             ]);
+// }
