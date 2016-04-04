@@ -232,7 +232,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         // the values to be overridden at the command line.
         // assignments elsewhere unconditionally set the variable
         auto var = statement.children[0].matches.join;
-        auto val = eval(statement.children[1]);
+        auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
         return topLevel
             ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
             : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
@@ -256,6 +256,7 @@ string eval(in ParseTree expression) {
         throw new Exception("Unknown expression " ~ expression.name);
     }
 }
+
 
 @("Variable assignment with := to auto QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
@@ -281,11 +282,11 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("Variables can be assigned to nothing") unittest {
-//     auto parseTree = Makefile("QUIET:=\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
-// }
+@("Variables can be assigned to nothing") unittest {
+    auto parseTree = Makefile("QUIET:=\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
+}
 
 // @Serial
 // @("includes are expanded in place") unittest {
