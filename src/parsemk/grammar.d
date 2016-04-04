@@ -18,8 +18,8 @@ Makefile:
     SimpleAssignment    <- Spacing VariableDecl Spacing ":=" (!endOfLine .)* endOfLine
     RecursiveAssignment <- Spacing VariableDecl Spacing "=" Spacing? (!endOfLine .)* endOfLine
     VariableDecl        <- identifier
-    VariableValue       <- IfFunc / (!endOfLine .)* endOfLine
-    IfFunc              <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")" endOfLine
+    VariableValue       <- IfFunc endOfLine / (!endOfLine .)* endOfLine
+    IfFunc              <- "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
     FuncArg             <- Variable / (!"," .)*
     FuncLastArg         <- Variable / (!")" .)*
     Include             <- "include" Spacing FileName endOfLine

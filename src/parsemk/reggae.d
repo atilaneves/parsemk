@@ -143,7 +143,7 @@ string[] elementToReggae(in ParseTree element, bool topLevel = true) {
         auto cond = ifFunc.children[0].matches.join;
         auto trueBranch = ifFunc.children[1].matches.join;
         auto fromTrueBranch = ifFunc.matches.join.find(trueBranch);
-        auto elseBranch = fromTrueBranch.find(",")[1 .. $-2]; //skip "," and ")\n"
+        auto elseBranch = fromTrueBranch.find(",")[1 .. $-1]; //skip "," and ")"
         return [resolveVariablesInValue(cond) ~ ` ? ` ~
                 resolveVariablesInValue(trueBranch) ~ ` : ` ~
                 resolveVariablesInValue(elseBranch)];
