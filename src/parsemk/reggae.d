@@ -63,25 +63,6 @@ private string resolveVariablesInValue(in string val) {
     auto re = regex(`\$\((.+)\)`, "g");
     auto replacement = val.replaceAll(re, `" ~ makeVars["$1"] ~ "`);
     return `"` ~ replacement ~ `"`;
-
-    // string ret = `"`;
-    // auto varStart = val.countUntil("$(");
-
-    // if(varStart == -1) return `"` ~ val ~ `"`;
-    // while(varStart != -1) {
-    //     varStart += 2; //skip $(
-    //     ret ~= val[0 .. varStart - 2] ~ `" ~ `;
-    //     val = val[varStart .. $];
-
-    //     varStart = val.countUntil(")");
-    //     ret ~= val[0 .. varStart];
-    //     val = val[varStart + 1 .. $];
-
-    //     varStart = val.countUntil("$(");
-    //     val = val[0 .. $];
-    // }
-
-    // return ret ~ val;
 }
 
 private string[] assignmentToReggae(in ParseTree element, ref Environment environment, bool newBinding) {
@@ -168,13 +149,13 @@ string toReggaeOutput(ParseTree parseTree) {
 @("Variable assignment with := to auto QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`auto QUIET = userVars.get("QUIET", "true");`]);
+        [`makeVars["QUIET"] = userVars.get("QUIET", "true");`]);
 }
 
 @("Variable assignment with := to auto FOO") unittest {
     auto parseTree = Makefile("FOO:=bar\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`auto FOO = userVars.get("FOO", "bar");`]);
+        [`makeVars["FOO"] = userVars.get("FOO", "bar");`]);
 }
 
 @("Comments are ignored") unittest {
@@ -182,14 +163,14 @@ string toReggaeOutput(ParseTree parseTree) {
         "# this is a comment\n"
         "QUIET:=true\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`auto QUIET = userVars.get("QUIET", "true");`]);
+        [`makeVars["QUIET"] = userVars.get("QUIET", "true");`]);
 }
 
 
 @("Variables can be assigned to nothing") unittest {
     auto parseTree = Makefile("QUIET:=\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`auto QUIET = userVars.get("QUIET", "");`]);
+        [`makeVars["QUIET"] = userVars.get("QUIET", "");`]);
 }
 
 @Serial
@@ -201,7 +182,7 @@ string toReggaeOutput(ParseTree parseTree) {
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`auto OS = userVars.get("OS", "solaris");`]);
+        [`makeVars["OS"] = userVars.get("OS", "solaris");`]);
 }
 
 @("ifeq works correctly with no else block") unittest {
@@ -213,7 +194,7 @@ string toReggaeOutput(ParseTree parseTree) {
 
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("OS", "") == "") {`,
-         `    auto OS = "osx";`,
+         `    makeVars["OS"] = "osx";`,
          `}`
         ]);
 }
@@ -227,7 +208,7 @@ string toReggaeOutput(ParseTree parseTree) {
 
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("OS", "MACOS") == "MACOS") {`,
-         `    auto OS = "osx";`,
+         `    makeVars["OS"] = "osx";`,
          `}`
         ]);
 }
@@ -245,10 +226,10 @@ string toReggaeOutput(ParseTree parseTree) {
 
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("BUILD", "") == "") {`,
-         `    auto BUILD_WAS_SPECIFIED = "0";`,
-         `    auto BUILD = "release";`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
+         `    makeVars["BUILD"] = "release";`,
          `else {`,
-         `    auto BUILD_WAS_SPECIFIED = "1";`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
          `}`
         ]);
 }
@@ -265,7 +246,7 @@ string toReggaeOutput(ParseTree parseTree) {
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("OS", "MACOS") == "MACOS") {`,
-         `    auto OS = "osx";`,
+         `    makeVars["OS"] = "osx";`,
          `}`]);
 }
 
@@ -280,9 +261,9 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("OS", "") == "") {`,
-         `    auto uname_S = "Linux";`,
-         `    if(uname_S == "Darwin") {`,
-         `        auto OS = "osx";`,
+         `    makeVars["uname_S"] = "Linux";`,
+         `    if(makeVars["uname_S"] == "Darwin") {`,
+         `        makeVars["OS"] = "osx";`,
          `    }`,
          `}`,
             ]);
@@ -298,9 +279,9 @@ string toReggaeOutput(ParseTree parseTree) {
             ].join("\n") ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
         [`if(userVars.get("MODEL", "") == "") {`,
-         `    auto MODEL = "64";`,
+         `    makeVars["MODEL"] = "64";`,
          `}`,
-         `auto MODEL_FLAG = userVars.get("MODEL_FLAG", "-m" ~ MODEL);`,
+         `makeVars["MODEL_FLAG"] = userVars.get("MODEL_FLAG", "-m" ~ makeVars["MODEL"] ~ "");`,
             ]);
 }
 
