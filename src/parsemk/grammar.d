@@ -18,7 +18,8 @@ Makefile:
     Include             <- "include" Spacing FileName endOfLine
     FileName            <- FileNameChar*
     FileNameChar        <- [a-zA-Z_0-9./]
-    Error               <- Spacing "$(error " (!")" .)* ")" endOfLine
+    Error               <- Spacing "$(error " (!endOfLine .)* endOfLine
+    VarText             <- "$(" (!")" .)* ")" / .*
     Ignore              <- Comment / Empty
     Comment             <- Spacing "#" (!endOfLine .)* endOfLine
     Empty               <- endOfLine / Spacing endOfLine

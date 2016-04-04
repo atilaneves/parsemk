@@ -49,9 +49,9 @@ ifeq (,$(MODEL))
   # ifneq (,$(findstring $(uname_M),i386 i586 i686))
   #   MODEL:=32
   # endif
-  # ifeq (,$(MODEL))
-  #   $(error Cannot figure 32/64 model from uname -m: $(uname_M))
-  # endif
+  ifeq (,$(MODEL))
+    $(error Cannot figure 32/64 model from uname -m: $(uname_M))
+  endif
 endif
 
 MODEL_FLAG:=-m$(MODEL)
