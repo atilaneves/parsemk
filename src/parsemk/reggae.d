@@ -21,19 +21,23 @@ struct Environment {
 }
 
 string toReggaeOutput(ParseTree parseTree) {
-    return ([`import reggae;`] ~
-             `import std.algorithm;` ~
-             `string[string] makeVars; // dynamic variables` ~
-             `string consultVar(in string var, in string default_ = "") {` ~
-             `    return var in makeVars ? makeVars[var] : userVars.get(var, default_);` ~
-             `}` ~
-             `// implementation of GNU make $(findstring)` ~
-             `string findstring(in string needle, in string haystack) {` ~
-             `    return haystack.canFind(needle) ? needle : "";` ~
-             `}` ~
-             `auto _getBuild() {` ~
-             toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
-             `}`).join("\n");
+    return q{
+/**
+ Automatically generated from parsing a Makefile, do not edit by hand
+ */
+import reggae;
+import std.algorithm;
+string[string] makeVars; // dynamic variables
+string consultVar(in string var, in string default_ = "") {
+    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
+}
+// implementation of GNU make $(findstring)
+string findstring(in string needle, in string haystack) {
+    return haystack.canFind(needle) ? needle : "";
+}
+auto _getBuild() }
+     ~ "{\n" ~
+    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
 }
 
 string[] toReggaeLines(ParseTree parseTree) {
