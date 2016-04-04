@@ -235,10 +235,15 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         auto rhs = ifBlock.children[1];
         auto ifStatements = ifBlock.children[2..$];
         auto operator = `==`;
+        string[] mapInnerStatements(in ParseTree[] statements) {
+            return statements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array;
+        }
+        auto elseStatements = statement.children.length > 1 ? statement.children[1].children : [];
         return [`if(` ~ eval(lhs) ~ ` ` ~ operator ~ ` ` ~ eval(rhs) ~ `) {`] ~
-            ifStatements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array ~
+            mapInnerStatements(ifStatements) ~
+            (elseStatements.length ? [`} else {`] : []) ~
+            mapInnerStatements(elseStatements) ~
             `}`;
-
 
     case "Makefile.Assignment":
         // assignments at top-level need to consult userVars in order for
@@ -362,25 +367,25 @@ string eval(in ParseTree expression) {
 }
 
 
-// @("ifeq works correctly with else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(BUILD))",
-//          "BUILD_WAS_SPECIFIED=0",
-//          "BUILD=release",
-//          "else",
-//          "BUILD_WAS_SPECIFIED=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
+@("ifeq works correctly with else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ].join("\n") ~ "\n");
 
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("BUILD", "")) {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
-//          `    makeVars["BUILD"] = "release";`,
-//          `} else {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
-//          `}`
-//         ]);
-// }
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("BUILD", "")) {`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
+         `    makeVars["BUILD"] = "release";`,
+         `} else {`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
+         `}`
+        ]);
+}
 
 // @Serial
 // @("includes with ifeq are expanded in place") unittest {
