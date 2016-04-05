@@ -12,7 +12,7 @@ Makefile:
     IfNotEqual        <- Spacing "ifneq" Spacing "(" ArgExpression "," Spacing ArgExpression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
-    SimpleStatement   <- Assignment / Include / Comment / Error / Override / Foo / Empty
+    SimpleStatement   <- Assignment / Include / Comment / Error / Override / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
@@ -31,10 +31,9 @@ Makefile:
     Include           <- "include" Spacing FileName
     FileName          <- FileNameChar*
     FileNameChar      <- [a-zA-Z_0-9./]
-    Error             <- Spacing "$(error " Expression ")"
+    Error             <- Spacing "$(error " EmbeddedString
     Override          <- "override " VariableDecl ("=" / ":=") Expression
-    Foo <- "foo " EmbeddedString
-    EmbeddedString <- (FreeFormString? Variable?)*
-    FreeFormString <- (!endOfLine !"$" .)*
+    EmbeddedString    <- (FreeFormString? Variable?)*
+    FreeFormString    <- (!endOfLine !"$" .)*
     Empty             <- ""
 `));

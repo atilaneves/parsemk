@@ -127,9 +127,13 @@ string eval(in ParseTree expression) {
     case "Makefile.Expression":
     case "Makefile.ArgExpression":
         return expression.children.map!eval.join(` ~ `);
+    case "Makefile.EmbeddedString":
+        // get rid of trailing ")"
+        return expression.children[0 .. $-1].map!eval.join(` ~ `);
     case "Makefile.LiteralString":
     case "Makefile.ArgString":
     case "Makefile.NonEmptyString":
+    case "Makefile.FreeFormString":
         return `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
@@ -146,6 +150,7 @@ string eval(in ParseTree expression) {
         auto trueBranch = eval(expression.children[1]);
         auto falseBranch = `""`;
         return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
+
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -350,31 +355,31 @@ string eval(in ParseTree expression) {
             ]);
 }
 
-// @("error statement 1") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  $(error Model is not set for $(foo))",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
-//          `}`,
-//             ]);
-// }
+@("error statement 1") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set for $(foo))",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("MODEL", "")) {`,
+         `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
+         `}`,
+            ]);
+}
 
-// @("error statement 2") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
-//          "endif",
-//          ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
-//          `}`,
-//             ]);
-// }
+@("error statement 2") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
+         "endif",
+         ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
+         `}`,
+            ]);
+}
 
 
 @("ifneq") unittest {
@@ -410,9 +415,4 @@ string eval(in ParseTree expression) {
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
             ]);
-}
-
-
-@("foo") unittest {
-    writeln(Makefile("foo as the crow flies, we see $(FOO) and $(BAR) in there\n"));
 }
