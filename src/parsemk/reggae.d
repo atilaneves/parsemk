@@ -411,3 +411,8 @@ string eval(in ParseTree expression) {
         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
             ]);
 }
+
+
+@("foo") unittest {
+    writeln(Makefile("foo as the crow flies, we see $(FOO) and $(BAR) in there\n"));
+}
