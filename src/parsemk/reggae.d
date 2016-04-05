@@ -101,7 +101,9 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [`//` ~ statement.matches[1..$].join];
 
     case "Makefile.Error":
-        return [`throw new Exception(` ~ eval(statement.children[0]) ~ `);`];
+        auto embedded = statement.children[0];
+        // the slice gets rid of trailing ")"
+        return [`throw new Exception(` ~ embedded.children[0 .. $-1].map!eval.join(` ~ `) ~ `);`];
 
     case "Makefile.Empty":
         return [];
@@ -125,10 +127,12 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
 string eval(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
-    case "Makefile.LiteralString":
+    case "Makefile.EmbeddedString":
         return expression.children.map!eval.join(` ~ `);
+    case "Makefile.LiteralString":
+    case "Makefile.ArgString":
     case "Makefile.NonEmptyString":
-    case "Makefile.EmptyString":
+    case "Makefile.FreeFormString":
         return `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
@@ -145,6 +149,7 @@ string eval(in ParseTree expression) {
         auto trueBranch = eval(expression.children[1]);
         auto falseBranch = `""`;
         return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
+
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }

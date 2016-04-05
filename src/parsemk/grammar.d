@@ -13,15 +13,15 @@ Makefile:
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
     SimpleStatement   <- Assignment / Include / Comment / Error / Override / Empty
-    Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
+    Assignment        <- Spacing VariableDecl Spacing (":=" / "=") EmbeddedString
     VariableDecl      <- identifier
-    Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
+    Expression     <- Function / Variable / ArgString
+    ArgString         <- NonEmptyArgString / EmptyString
+    NonEmptyArgString <- (!")" !"," .)+
     Function          <- Shell / FindString / IfFunc
     Shell             <- Spacing "$(shell " NonEmptyString ")"
-    FindString        <- Spacing "$(findstring " FuncArg "," FuncLastArg ")"
-    IfFunc            <- Spacing "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
-    FuncArg           <- Variable / (!"," .)*
-    FuncLastArg       <- Variable / (!")" .)*
+    FindString        <- Spacing "$(findstring " Expression "," Expression ")"
+    IfFunc            <- Spacing "$(if " Expression "," Expression "," Expression ")"
     LiteralString     <- NonEmptyString / EmptyString
     NonEmptyString    <- [a-zA-Z_0-9./\- :]+
     EmptyString       <- ""
@@ -30,7 +30,9 @@ Makefile:
     Include           <- "include" Spacing FileName
     FileName          <- FileNameChar*
     FileNameChar      <- [a-zA-Z_0-9./]
-    Error             <- Spacing "$(error " Expression ")"
-    Override          <- "override " VariableDecl ("=" / ":=") Expression
+    Error             <- Spacing "$(error " EmbeddedString
+    Override          <- "override " VariableDecl ("=" / ":=") EmbeddedString
+    EmbeddedString    <- (Function? Variable? FreeFormString?)*
+    FreeFormString    <- (!endOfLine !"$" .)*
     Empty             <- ""
 `));
