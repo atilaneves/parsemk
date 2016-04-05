@@ -32,8 +32,8 @@ Makefile:
     FileName          <- FileNameChar*
     FileNameChar      <- [a-zA-Z_0-9./]
     Error             <- Spacing "$(error " EmbeddedString
-    Override          <- "override " VariableDecl ("=" / ":=") Expression
-    EmbeddedString    <- (FreeFormString? Variable?)*
+    Override          <- "override " VariableDecl ("=" / ":=") EmbeddedString
+    EmbeddedString    <- (Function? Variable? FreeFormString?)*
     FreeFormString    <- (!endOfLine !"$" .)*
     Empty             <- ""
 `));

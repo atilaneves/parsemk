@@ -101,7 +101,9 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [`//` ~ statement.matches[1..$].join];
 
     case "Makefile.Error":
-        return [`throw new Exception(` ~ eval(statement.children[0]) ~ `);`];
+        auto embedded = statement.children[0];
+        // the slice gets rid of trailing ")"
+        return [`throw new Exception(` ~ embedded.children[0 .. $-1].map!eval.join(` ~ `) ~ `);`];
 
     case "Makefile.Empty":
         return [];
@@ -126,10 +128,8 @@ string eval(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
     case "Makefile.ArgExpression":
-        return expression.children.map!eval.join(` ~ `);
     case "Makefile.EmbeddedString":
-        // get rid of trailing ")"
-        return expression.children[0 .. $-1].map!eval.join(` ~ `);
+        return expression.children.map!eval.join(` ~ `);
     case "Makefile.LiteralString":
     case "Makefile.ArgString":
     case "Makefile.NonEmptyString":
