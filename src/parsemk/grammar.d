@@ -21,10 +21,8 @@ Makefile:
     NonEmptyArgString <- (!")" !"," .)+
     Function          <- Shell / FindString / IfFunc
     Shell             <- Spacing "$(shell " NonEmptyString ")"
-    FindString        <- Spacing "$(findstring " FuncArg "," FuncLastArg ")"
-    IfFunc            <- Spacing "$(if " FuncArg "," FuncArg "," FuncLastArg ")"
-    FuncArg           <- Variable / (!"," .)*
-    FuncLastArg       <- Variable / (!")" .)*
+    FindString        <- Spacing "$(findstring " ArgExpression "," ArgExpression ")"
+    IfFunc            <- Spacing "$(if " ArgExpression "," ArgExpression "," ArgExpression ")"
     LiteralString     <- NonEmptyString / EmptyString
     NonEmptyString    <- [a-zA-Z_0-9./\- :]+
     EmptyString       <- ""
