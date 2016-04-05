@@ -127,7 +127,6 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
 string eval(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
-    case "Makefile.ArgExpression":
     case "Makefile.EmbeddedString":
         return expression.children.map!eval.join(` ~ `);
     case "Makefile.LiteralString":
