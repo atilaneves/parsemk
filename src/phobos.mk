@@ -64,3 +64,31 @@ BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc $(DOCSRC)/macros.ddoc
 # Set DDOC, the documentation generator
 DDOC=$(DMD) -conf= $(MODEL_FLAG) -w -c -o- -version=StdDdoc \
 	-I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
+# Set DRUNTIME name and full path
+ifneq (,$(DRUNTIME))
+	CUSTOM_DRUNTIME=1
+endif
+ifeq (,$(findstring win,$(OS)))
+	DRUNTIME = $(DRUNTIME_PATH)/generated/$(OS)/$(BUILD)/$(MODEL)/libdruntime.a
+	DRUNTIMESO = $(basename $(DRUNTIME)).so.a
+else
+	DRUNTIME = $(DRUNTIME_PATH)/lib/druntime.lib
+endif
+
+# Set CC and DMD
+ifeq ($(OS),win32wine)
+	CC = wine dmc.exe
+	DMD = wine dmd.exe
+	RUN = wine
+else
+	DMD = ../dmd/src/dmd
+	ifeq ($(OS),win32)
+		CC = dmc
+	else
+		CC = cc
+	endif
+	RUN =
+endif
+
+# Set CFLAGS
+CFLAGS=$(MODEL_FLAG) -fPIC -DHAVE_UNISTD_H
