@@ -8,8 +8,8 @@ Makefile:
     Statement         <- CompoundStatement / SimpleStatement endOfLine
     CompoundStatement <- ConditionBlock
     ConditionBlock    <- (IfEqual / IfNotEqual) Else? EndIf
-    IfEqual           <- Spacing "ifeq" Spacing "(" ArgExpression "," Spacing Expression ")" endOfLine Statement+
-    IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
+    IfEqual           <- Spacing "ifeq" Spacing "(" ArgExpression "," Spacing ArgExpression ")" endOfLine Statement+
+    IfNotEqual        <- Spacing "ifneq" Spacing "(" ArgExpression "," Spacing ArgExpression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
     SimpleStatement   <- Assignment / Include / Comment / Error / Override / Empty

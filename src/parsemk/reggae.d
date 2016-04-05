@@ -129,6 +129,7 @@ string eval(in ParseTree expression) {
         return expression.children.map!eval.join(` ~ `);
     case "Makefile.LiteralString":
     case "Makefile.ArgString":
+    case "Makefile.NonEmptyString":
         return `"` ~ expression.matches.join ~ `"`;
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
@@ -199,7 +200,6 @@ string eval(in ParseTree expression) {
          "OS=osx",
          "endif",
             ].join("\n") ~ "\n");
-    writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`if("" == "foo") {`,
          `    makeVars["OS"] = "osx";`,
@@ -207,148 +207,148 @@ string eval(in ParseTree expression) {
         ]);
 }
 
-// @("ifeq works correctly with no else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+@("ifeq works correctly with no else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`
+        ]);
+}
 
-// @("ifeq works correctly with no else block and non-empty comparison") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
+@("ifeq works correctly with no else block and non-empty comparison") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ].join("\n") ~ "\n");
 
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
-
-
-// @("ifeq works correctly with else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(BUILD))",
-//          "BUILD_WAS_SPECIFIED=0",
-//          "BUILD=release",
-//          "else",
-//          "BUILD_WAS_SPECIFIED=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
-
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("BUILD", "")) {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
-//          `    makeVars["BUILD"] = "release";`,
-//          `} else {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
-//          `}`
-//         ]);
-// }
-
-// @Serial
-// @("includes with ifeq are expanded in place") unittest {
-//     auto fileName = "/tmp/inner.mk";
-//     {
-//         auto file = File(fileName, "w");
-//         file.writeln("ifeq (MACOS,$(OS))");
-//         file.writeln("  OS:=osx");
-//         file.writeln("endif");
-//     }
-//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`]);
-// }
-
-// @("nested ifeq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=Linux",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = "Linux";`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`
+        ]);
+}
 
 
-// @("Refer to declared variable") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  MODEL:=64",
-//          "endif",
-//          "MODEL_FLAG:=-m$(MODEL)",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//          `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
-//             ]);
-// }
+@("ifeq works correctly with else block") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ].join("\n") ~ "\n");
+
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("BUILD", "")) {`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
+         `    makeVars["BUILD"] = "release";`,
+         `} else {`,
+         `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
+         `}`
+        ]);
+}
+
+@Serial
+@("includes with ifeq are expanded in place") unittest {
+    auto fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("ifeq (MACOS,$(OS))");
+        file.writeln("  OS:=osx");
+        file.writeln("endif");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`]);
+}
+
+@("nested ifeq") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["uname_S"] = "Linux";`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
+         `        makeVars["OS"] = "osx";`,
+         `    }`,
+         `}`,
+            ]);
+}
 
 
-// @("shell commands") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("Refer to declared variable") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("MODEL", "")) {`,
+         `    makeVars["MODEL"] = "64";`,
+         `}`,
+         `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
+            ]);
+}
 
 
-// @("ifeq with space and variable on the left side") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "  OS:=osx",
-//          "endif",
-//          "ifeq (,$(MODEL))",
-//          "  ifeq ($(OS), solaris)",
-//          "    uname_M:=$(shell isainfo -n)",
-//          "  endif",
-//          "endif",
-//         ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`,
-//          `if("" == consultVar("MODEL", "")) {`,
-//          `    if(consultVar("OS", "") == "solaris") {`,
-//          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("shell commands") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" == consultVar("OS", "")) {`,
+         `    makeVars["uname_S"] = executeShell("uname -s").output;`,
+         `    if("Darwin" == consultVar("uname_S", "")) {`,
+         `        makeVars["OS"] = "osx";`,
+         `    }`,
+         `}`,
+            ]);
+}
+
+
+@("ifeq with space and variable on the left side") unittest {
+    auto parseTree = Makefile(
+        ["ifeq (MACOS,$(OS))",
+         "  OS:=osx",
+         "endif",
+         "ifeq (,$(MODEL))",
+         "  ifeq ($(OS), solaris)",
+         "    uname_M:=$(shell isainfo -n)",
+         "  endif",
+         "endif",
+        ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("MACOS" == consultVar("OS", "")) {`,
+         `    makeVars["OS"] = "osx";`,
+         `}`,
+         `if("" == consultVar("MODEL", "")) {`,
+         `    if(consultVar("OS", "") == "solaris") {`,
+         `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
+         `    }`,
+         `}`,
+            ]);
+}
 
 // @("error statement 1") unittest {
 //     auto parseTree = Makefile(
@@ -377,37 +377,37 @@ string eval(in ParseTree expression) {
 // }
 
 
-// @("ifneq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifneq (,$(FOO))",
-//          "  FOO_SET:=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" != consultVar("FOO", "")) {`,
-//          `    makeVars["FOO_SET"] = "1";`,
-//          `}`,
-//             ]);
-// }
+@("ifneq") unittest {
+    auto parseTree = Makefile(
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if("" != consultVar("FOO", "")) {`,
+         `    makeVars["FOO_SET"] = "1";`,
+         `}`,
+            ]);
+}
 
-// @("ifneq findstring") unittest {
-//     auto parseTree = Makefile(
-//         ["uname_M:=x86_64",
-//          "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
-//          "  MODEL:=64",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
-//          `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//             ]);
-// }
+@("ifneq findstring") unittest {
+    auto parseTree = Makefile(
+        ["uname_M:=x86_64",
+         "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
+         "  MODEL:=64",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
+         `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
+         `    makeVars["MODEL"] = "64";`,
+         `}`,
+            ]);
+}
 
-// @("override with if") unittest {
-//     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
-//             ]);
-// }
+@("override with if") unittest {
+    auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
+            ]);
+}
