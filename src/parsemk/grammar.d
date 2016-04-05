@@ -8,7 +8,7 @@ Makefile:
     Statement         <- CompoundStatement / SimpleStatement endOfLine
     CompoundStatement <- ConditionBlock
     ConditionBlock    <- (IfEqual / IfNotEqual) Else? EndIf
-    IfEqual           <- Spacing "ifeq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
+    IfEqual           <- Spacing "ifeq" Spacing "(" ArgExpression "," Spacing Expression ")" endOfLine Statement+
     IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
@@ -16,6 +16,9 @@ Makefile:
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") Expression
     VariableDecl      <- identifier
     Expression        <- Function / NonEmptyString Variable / Variable / LiteralString
+    ArgExpression     <- Function / Variable / ArgString
+    ArgString         <- NonEmptyArgString / EmptyString
+    NonEmptyArgString <- (!")" !"," .)+
     Function          <- Shell / FindString / IfFunc
     Shell             <- Spacing "$(shell " NonEmptyString ")"
     FindString        <- Spacing "$(findstring " FuncArg "," FuncLastArg ")"
