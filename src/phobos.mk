@@ -52,3 +52,15 @@ DRUNTIME_PATH = ../druntime
 ZIPFILE = phobos.zip
 ROOT_OF_THEM_ALL = generated
 ROOT = $(ROOT_OF_THEM_ALL)/$(OS)/$(BUILD)/$(MODEL)
+# Documentation-related stuff
+DOCSRC = ../dlang.org
+WEBSITE_DIR = ../web
+DOC_OUTPUT_DIR = $(WEBSITE_DIR)/phobos-prerelease
+BIGDOC_OUTPUT_DIR = /tmp
+SRC_DOCUMENTABLES = index.d $(addsuffix .d,$(STD_MODULES) \
+	$(EXTRA_DOCUMENTABLES))
+STDDOC = $(DOCSRC)/html.ddoc $(DOCSRC)/dlang.org.ddoc $(DOCSRC)/std_navbar-prerelease.ddoc $(DOCSRC)/std.ddoc $(DOCSRC)/macros.ddoc $(DOCSRC)/.generated/modlist-prerelease.ddoc
+BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc $(DOCSRC)/macros.ddoc
+# Set DDOC, the documentation generator
+DDOC=$(DMD) -conf= $(MODEL_FLAG) -w -c -o- -version=StdDdoc \
+	-I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
