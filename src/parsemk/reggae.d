@@ -214,6 +214,9 @@ string translateFunction(in ParseTree function_) {
     case "findstring":
         return `findstring(` ~ translate(function_.children[1]) ~ `, ` ~ translate(function_.children[2]) ~ `)`;
 
+    case "shell":
+        return `executeShell(` ~ translate(function_.children[1]) ~ `).output`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -494,51 +497,51 @@ version(unittest) {
 // }
 
 
-// @("shell function no user vars Darwin") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ]);
-//     version(Linux) {
-//         makeVarShouldBe!"uname_S"("Linux");
-//         makeVarShouldNotBeSet!"OS";
-//     } else {}
-// }
+@("shell function no user vars Darwin") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldNotBeSet!"OS";
+    } else {}
+}
 
-// @("shell function no user vars Linux") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Linux,$(uname_S))",
-//          "    OS:=DefinitelyLinux",
-//          "  endif",
-//          "endif",
-//             ]);
-//     version(Linux) {
-//         makeVarShouldBe!"uname_S"("Linux");
-//         makeVarShouldBe!"OS"("DefinitelyLinux");
-//     } else {}
-// }
+@("shell function no user vars Linux") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=DefinitelyLinux",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldBe!"OS"("DefinitelyLinux");
+    } else {}
+}
 
-// @("shell function with user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["OS": "Linux"],
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Linux,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ]);
-//     version(Linux) {
-//         makeVarShouldNotBeSet!"uname_S";
-//         makeVarShouldNotBeSet!"OS";
-//     } else {}
-// }
+@("shell function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldNotBeSet!"uname_S";
+        makeVarShouldNotBeSet!"OS";
+    } else {}
+}
 
 // @("error function with no vars") unittest {
 //     try {
