@@ -475,26 +475,26 @@ version(unittest) {
 // }
 
 
-// @("Assignment to variabled embedded in string with no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(MODEL))",
-//          "  MODEL:=64",
-//          "endif",
-//          "MODEL_FLAG:=-m$(MODEL)",
-//             ]);
-//     makeVarShouldBe!"MODEL_FLAG"("-m64");
-// }
+@("Assignment to variabled embedded in string with no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m64");
+}
 
-// @("Assignment to variabled embedded in string with user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["MODEL": "32"],
-//         ["ifeq (,$(MODEL))",
-//          "  MODEL:=64",
-//          "endif",
-//          "MODEL_FLAG:=-m$(MODEL)",
-//             ]);
-//     makeVarShouldBe!"MODEL_FLAG"("-m32");
-// }
+@("Assignment to variabled embedded in string with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "32"],
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m32");
+}
 
 
 @("shell function no user vars Darwin") unittest {
