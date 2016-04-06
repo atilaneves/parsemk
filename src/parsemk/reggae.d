@@ -262,22 +262,20 @@ version(unittest) {
     }
 }
 
-@("Top-level assignment with no customization") unittest {
+@("Top-level assignment to QUIET with no customization") unittest {
     mixin TestMakeToReggae!(["QUIET:=true"]);
     makeVarShouldBe!"QUIET"("true");
 }
 
-@("Top-level assignment with customization") unittest {
+@("Top-level assignment to FOO with no customization") unittest {
+    mixin TestMakeToReggae!(["FOO:=bar"]);
+    makeVarShouldBe!"FOO"("bar");
+}
+
+@("Top-level assignment to QUIET with customization") unittest {
     mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
     makeVarShouldBe!"QUIET"("foo");
 }
-
-
-// @("Variable assignment with := to auto FOO") unittest {
-//     auto parseTree = Makefile("FOO:=bar\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
-// }
 
 // @("Comments are not ignored") unittest {
 //     auto parseTree = Makefile(
