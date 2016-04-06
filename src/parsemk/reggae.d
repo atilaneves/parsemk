@@ -389,57 +389,54 @@ version(unittest) {
     makeVarShouldNotBeSet!"BUILD";
 }
 
+@("nested ifeq with no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    makeVarShouldBe!"uname_S"("Linux");
+    makeVarShouldNotBeSet!"OS";
+}
 
-// @Serial
-// @("includes with ifeq are expanded in place") unittest {
-//     auto fileName = "/tmp/inner.mk";
-//     {
-//         auto file = File(fileName, "w");
-//         file.writeln("ifeq (MACOS,$(OS))");
-//         file.writeln("  OS:=osx");
-//         file.writeln("endif");
-//     }
-//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`]);
-// }
-
-// @("nested ifeq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=Linux",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = "Linux";`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("nested ifeq with OS user var") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"uname_S";
+    makeVarShouldNotBeSet!"OS";
+}
 
 
-// @("Refer to declared variable") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  MODEL:=64",
-//          "endif",
-//          "MODEL_FLAG:=-m$(MODEL)",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//          `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
-//             ]);
-// }
+@("Assignment to variabled embedded in string with no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m64");
+}
+
+@("Assignment to variabled embedded in string with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "32"],
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m32");
+}
 
 
 // @("shell commands") unittest {
