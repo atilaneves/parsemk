@@ -313,7 +313,7 @@ version(unittest) {
         [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
 }
 
-@("ifeq works correctly with literals and no else block") unittest {
+@("ifeq with literals and no else block") unittest {
     mixin TestMakeToReggae!(
         ["ifeq (,foo)",
          "OS=osx",
@@ -322,18 +322,24 @@ version(unittest) {
     makeVarShouldNotBeSet!"OS";
 }
 
-// @("ifeq works correctly with no else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+@("ifeq with rhs variable, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldBe!"OS"("osx");
+}
+
+@("ifeq with rhs variable, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Windows"],
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
 // @("ifeq works correctly with no else block and non-empty comparison") unittest {
 //     auto parseTree = Makefile(
