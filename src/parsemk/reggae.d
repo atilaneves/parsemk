@@ -345,14 +345,14 @@ version(unittest) {
 }
 
 
-// @("Comments are not ignored") unittest {
-//     auto parseTree = Makefile(
-//         "# this is a comment\n"
-//         "\n"
-//         "\n"
-//         "QUIET:=true\n");
-//     "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
-// }
+@("Comments are not ignored") unittest {
+    auto parseTree = Makefile(
+        "# this is a comment\n"
+        "\n"
+        "\n"
+        "QUIET:=true\n");
+    "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
+}
 
 
 // //this file can't mixin and use the code since
