@@ -131,7 +131,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
         auto val = eval(statement.children[1]);
-        return [makeVar(var) ~ ` = ` ~ consultVar(var) ~ ` ~ ` ~ val ~ `;`];
+        return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.Empty":
         return [];
@@ -549,18 +549,28 @@ version(unittest) {
 }
 
 
-// @("+=") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq ($(BUILD),debug)",
-//          "  CFLAGS += -g",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if(consultVar("BUILD", "") == "debug") {`,
-//          `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
-//          `}`,
-//             ]);
-// }
+@("+= var not set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
+            ]);
+    makeVarShouldBe!"CFLAGS"("-g");
+}
+
+
+@("+= var set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["CFLAGS:=-O0",
+         "ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
+            ]);
+    makeVarShouldBe!"CFLAGS"("-O0 -g");
+}
+
 
 // @("shell in assigment") unittest {
 //     auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
