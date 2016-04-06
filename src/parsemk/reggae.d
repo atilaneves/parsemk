@@ -288,11 +288,10 @@ version(unittest) {
 }
 
 
-// @("Variables can be assigned to nothing") unittest {
-//     auto parseTree = Makefile("QUIET:=\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
-// }
+@("Top-level assignment to nothing") unittest {
+    mixin TestMakeToReggae!(["QUIET:="]);
+    makeVarShouldBe!"QUIET"("");
+}
 
 // @Serial
 // @("includes are expanded in place") unittest {
