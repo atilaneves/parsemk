@@ -507,32 +507,26 @@ version(unittest) {
             ]);
 }
 
-// @("error statement 2") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
-//          "endif",
-//          ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
-//          `}`,
-//             ]);
-// }
 
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"FOO_SET";
+}
 
-// @("ifneq") unittest {
-//     auto parseTree = Makefile(
-//         ["ifneq (,$(FOO))",
-//          "  FOO_SET:=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" != consultVar("FOO", "")) {`,
-//          `    makeVars["FOO_SET"] = "1";`,
-//          `}`,
-//             ]);
-// }
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["FOO": "BAR"],
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ]);
+    makeVarShouldBe!"FOO_SET"("1");
+}
+
 
 // @("ifneq findstring") unittest {
 //     auto parseTree = Makefile(
