@@ -371,108 +371,108 @@ version(unittest) {
 //         [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
 // }
 
-// @("ifeq with literals and no else block") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,foo)",
-//          "OS=osx",
-//          "endif"
-//             ]);
-//     makeVarShouldNotBeSet!"OS";
-// }
+@("ifeq with literals and no else block") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,foo)",
+         "OS=osx",
+         "endif"
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
-// @("ifeq with rhs variable, no else block and no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"OS"("osx");
-// }
+@("ifeq with rhs variable, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldBe!"OS"("osx");
+}
 
-// @("ifeq with rhs variable, no else block and user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["OS": "Windows"],
-//         ["ifeq (,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ]);
-//     makeVarShouldNotBeSet!"OS";
-// }
+@("ifeq with rhs variable, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Windows"],
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
-// @("ifeq with non-empty comparison, no else block and no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (MACOS,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ]);
-//     makeVarShouldNotBeSet!"OS";
-// }
+@("ifeq with non-empty comparison, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
-// @("ifeq with non-empty comparison, no else block and user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["OS": "MACOS"],
-//         ["ifeq (MACOS,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"OS"("osx");
-// }
+@("ifeq with non-empty comparison, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "MACOS"],
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldBe!"OS"("osx");
+}
 
 
-// @("ifeq works with else block and no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(BUILD))",
-//          "BUILD_WAS_SPECIFIED=0",
-//          "BUILD=release",
-//          "else",
-//          "BUILD_WAS_SPECIFIED=1",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"BUILD_WAS_SPECIFIED"("0");
-//     makeVarShouldBe!"BUILD"("release");
-// }
+@("ifeq works with else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ]);
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("0");
+    makeVarShouldBe!"BUILD"("release");
+}
 
-// @("ifeq works with else block and user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["BUILD": "debug"],
-//         ["ifeq (,$(BUILD))",
-//          "BUILD_WAS_SPECIFIED=0",
-//          "BUILD=release",
-//          "else",
-//          "BUILD_WAS_SPECIFIED=1",
-//          "endif",
-//             ]);
+@("ifeq works with else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ]);
 
-//     makeVarShouldBe!"BUILD_WAS_SPECIFIED"("1");
-//     makeVarShouldNotBeSet!"BUILD";
-// }
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("1");
+    makeVarShouldNotBeSet!"BUILD";
+}
 
-// @("nested ifeq with no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=Linux",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"uname_S"("Linux");
-//     makeVarShouldNotBeSet!"OS";
-// }
+@("nested ifeq with no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    makeVarShouldBe!"uname_S"("Linux");
+    makeVarShouldNotBeSet!"OS";
+}
 
-// @("nested ifeq with OS user var") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["OS": "Linux"],
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=Linux",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ]);
-//     makeVarShouldNotBeSet!"uname_S";
-//     makeVarShouldNotBeSet!"OS";
-// }
+@("nested ifeq with OS user var") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"uname_S";
+    makeVarShouldNotBeSet!"OS";
+}
 
 
 @("Assignment to variabled embedded in string with no user vars") unittest {
