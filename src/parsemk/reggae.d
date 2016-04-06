@@ -180,6 +180,12 @@ string eval(in ParseTree expression) {
         auto names = expression.children[1..$];
         return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array`;
 
+    case "Makefile.AddSuffix":
+        auto suffix = expression.children[0];
+        auto names = expression.children[1..$];
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array`;
+
+
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
@@ -489,5 +495,13 @@ string evalLiteralString(in string str) {
     writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
+            ]);
+}
+
+@("addsuffix") unittest {
+    auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
+    writeln(parseTree);
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
             ]);
 }
