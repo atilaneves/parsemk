@@ -94,9 +94,12 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
 
     case "Makefile.ConditionBlock":
         auto ifBlock = statement.children[0];
+        // one of the sides could be empty
+        auto numExpressions = ifBlock.children.count!(a => a.name == "Makefile.Expression");
         auto lhs = ifBlock.children[0];
-        auto rhs = ifBlock.children[1];
-        auto ifStatements = ifBlock.children[2..$];
+        auto rhs = numExpressions > 1 ? ifBlock.children[1] : ParseTree("Makefile.EmptyString");
+        auto firstStatementIndex = ifBlock.children.countUntil!(a => a.name == "Makefile.Statement");
+        auto ifStatements = ifBlock.children[firstStatementIndex .. $];
         auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
         string[] mapInnerStatements(in ParseTree[] statements) {
             return statements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array;
@@ -176,6 +179,7 @@ string translate(in ParseTree expression) {
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
     case "Makefile.String":
+    case "Makefile.EmptyString":
         return translateLiteralString(expression.matches.join);
     default:
         throw new Exception("Unknown expression " ~ expression.name);
@@ -557,24 +561,24 @@ version(unittest) {
 // }
 
 
-// @("ifneq no user vars") unittest {
-//     mixin TestMakeToReggae!(
-//         ["ifneq (,$(FOO))",
-//          "  FOO_SET:=1",
-//          "endif",
-//             ]);
-//     makeVarShouldNotBeSet!"FOO_SET";
-// }
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"FOO_SET";
+}
 
-// @("ifneq no user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["FOO": "BAR"],
-//         ["ifneq (,$(FOO))",
-//          "  FOO_SET:=1",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"FOO_SET"("1");
-// }
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["FOO": "BAR"],
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
+         "endif",
+            ]);
+    makeVarShouldBe!"FOO_SET"("1");
+}
 
 @("findstring") unittest {
     mixin TestMakeToReggae!(

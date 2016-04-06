@@ -27,6 +27,7 @@ Makefile:
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
     FileName <- ""
     Error <- ""
+    Empty              <- ""
 
 
     # ArgString         <- NonEmptyArgString / EmptyString
@@ -50,5 +51,4 @@ Makefile:
     # AddSuffix         <- Spacing "$(addsuffix " Expression "," (SpaceArgExpression " "?)+ ")"
     # SpaceArgExpression <- Function / Variable / SpaceArgString
     # SpaceArgString    <- (!")" !"," !" " .)+
-    Empty             <- ""
 `));
