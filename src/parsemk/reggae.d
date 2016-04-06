@@ -361,25 +361,34 @@ version(unittest) {
 }
 
 
-// @("ifeq works correctly with else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(BUILD))",
-//          "BUILD_WAS_SPECIFIED=0",
-//          "BUILD=release",
-//          "else",
-//          "BUILD_WAS_SPECIFIED=1",
-//          "endif",
-//             ].join("\n") ~ "\n");
+@("ifeq works with else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ]);
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("0");
+    makeVarShouldBe!"BUILD"("release");
+}
 
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("BUILD", "")) {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
-//          `    makeVars["BUILD"] = "release";`,
-//          `} else {`,
-//          `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
-//          `}`
-//         ]);
-// }
+@("ifeq works with else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ]);
+
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("1");
+    makeVarShouldNotBeSet!"BUILD";
+}
+
 
 // @Serial
 // @("includes with ifeq are expanded in place") unittest {
