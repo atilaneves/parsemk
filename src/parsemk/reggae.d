@@ -14,6 +14,7 @@ import std.regex;
 version(unittest) import unit_threaded;
 else {
     enum Serial;
+    enum ShouldFail;
 }
 
 
@@ -593,6 +594,8 @@ version(unittest) {
 }
 
 
+// .a applied to only the last element - must split by space
+@ShouldFail
 @("addsuffix subst with user vars") unittest {
     mixin TestMakeToReggaeUserVars!(
         ["DOTLIB": ".a"],
@@ -601,12 +604,16 @@ version(unittest) {
 }
 
 
-// @("addprefix addsuffix subst") unittest {
-//     //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-//     auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-//     writeln(parseTree);
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["P2LIB"] = consultVar("P2LIB", [["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array].map!(a => consultVar("ROOT", "") ~ a).array);`,
-//             ]);
+@("addprefix addsuffix subst no user vars") unittest {
+    mixin TestMakeToReggae!(["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
+    makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
+}
 
-// }
+// leroot/ only applied to first element, .a only to last element
+@ShouldFail
+@("addprefix addsuffix subst with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["ROOT": "leroot/", "DOTLIB": ".a"],
+        ["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
+    makeVarShouldBe!"P2LIB"("leroot/fEEt.a leroot/on.a leroot/the.a leroot/strEEt.a");
+}
