@@ -19,23 +19,7 @@ else {
 
 
 string toReggaeOutputWithImport(ParseTree parseTree) {
-    return q{
-/**
- Automatically generated from parsing a Makefile, do not edit by hand
- */
-import reggae;
-import std.algorithm;
-string[string] makeVars; // dynamic variables
-string consultVar(in string var, in string default_ = "") {
-    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
-}
-// implementation of GNU make $(findstring)
-string findstring(in string needle, in string haystack) {
-    return haystack.canFind(needle) ? needle : "";
-}
-auto _getBuild() }
-     ~ "{\n" ~
-    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
+    return "import reggae;\n" ~ toReggaeOutput(parseTree);
 }
 
 string toReggaeOutput(ParseTree parseTree) {
@@ -43,16 +27,23 @@ string toReggaeOutput(ParseTree parseTree) {
 /**
  Automatically generated from parsing a Makefile, do not edit by hand
  */
+
 import std.algorithm;
 import std.process;
+import std.path;
+import std.string;
+
 string[string] makeVars; // dynamic variables
+
 string consultVar(in string var, in string default_ = "") {
     return var in makeVars ? makeVars[var] : userVars.get(var, default_);
 }
+
 // implementation of GNU make $(findstring)
 string findstring(in string needle, in string haystack) {
     return haystack.canFind(needle) ? needle : "";
 }
+
 int _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
@@ -94,15 +85,18 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
 
     case "Makefile.ConditionBlock":
         auto ifBlock = statement.children[0];
+        // one of the sides could be empty
+        auto numExpressions = ifBlock.children.count!(a => a.name == "Makefile.Expression");
         auto lhs = ifBlock.children[0];
-        auto rhs = ifBlock.children[1];
-        auto ifStatements = ifBlock.children[2..$];
+        auto rhs = numExpressions > 1 ? ifBlock.children[1] : ParseTree("Makefile.String");
+        auto firstStatementIndex = ifBlock.children.countUntil!(a => a.name == "Makefile.Statement");
+        auto ifStatements = ifBlock.children[firstStatementIndex .. $];
         auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
         string[] mapInnerStatements(in ParseTree[] statements) {
             return statements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array;
         }
         auto elseStatements = statement.children.length > 1 ? statement.children[1].children : [];
-        return [`if(` ~ eval(lhs) ~ ` ` ~ operator ~ ` ` ~ eval(rhs) ~ `) {`] ~
+        return [`if(` ~ translate(lhs) ~ ` ` ~ operator ~ ` ` ~ translate(rhs) ~ `) {`] ~
             mapInnerStatements(ifStatements) ~
             (elseStatements.length ? [`} else {`] : []) ~
             mapInnerStatements(elseStatements) ~
@@ -125,13 +119,13 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [`//` ~ statement.matches[1..$].join];
 
     case "Makefile.Error":
-        auto embedded = statement.children[0];
-        // the slice gets rid of trailing ")"
-        return [`throw new Exception(` ~ embedded.children[0 .. $-1].map!eval.join(` ~ `) ~ `);`];
+        auto msg = translate(statement.children[0]);
+        //return [`throw new Exception(` ~ msg.children.map!translate.join(` ~ `) ~ `);`];
+        return [`throw new Exception(` ~ msg ~ `);`];
 
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
-        auto val = eval(statement.children[1]);
+        auto val = translate(statement.children[1]);
         return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.Empty":
@@ -148,7 +142,7 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     // the values to be overridden at the command line.
     // assignments elsewhere unconditionally set the variable
     auto var = statement.children[0].matches.join;
-    auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
+    auto val = statement.children.length > 1 ? translate(statement.children[1]) : `""`;
     return topLevel
         ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
@@ -167,56 +161,67 @@ private string consultVar(in string varName, in string default_) {
 }
 
 
-string eval(in ParseTree expression) {
+string translate(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
-    case "Makefile.EmbeddedString":
-    case "Makefile.SpaceArgExpression":
-        return expression.children.map!eval.join(` ~ `);
-    case "Makefile.LiteralString":
-    case "Makefile.ArgString":
-    case "Makefile.NonEmptyString":
-    case "Makefile.FreeFormString":
-    case "Makefile.SpaceArgString":
-        return evalLiteralString(expression.matches.join);
-    case "Makefile.Variable":
-        return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
+    case "Makefile.ErrorExpression":
+        auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
+                                         expression.children[0].matches.join == " ";
+        auto children = expressionBeginsWithSpace ? expression.children[1..$] : expression.children;
+        return children.map!translate.join(` ~ `);
     case "Makefile.Function":
-    case "Makefile.FuncArg":
-    case "Makefile.FuncLastArg":
-        return expression.children.length ? eval(expression.children[0]) : evalLiteralString(expression.matches.join);
-    case "Makefile.Shell":
-        return `executeShell(` ~ eval(expression.children[0]) ~ `).output`;
-    case "Makefile.FindString":
-        return `findstring(` ~ eval(expression.children[0]) ~ `, ` ~ eval(expression.children[1]) ~ `)`;
-    case "Makefile.IfFunc":
-        auto cond = eval(expression.children[0]);
-        auto trueBranch = eval(expression.children[1]);
-        auto falseBranch = `""`;
-        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
-    case "Makefile.Subst":
-        auto from = expression.children[0];
-        auto to = expression.children[1];
-        auto text = expression.children[2];
-        return eval(text) ~ `.replace(` ~ eval(from) ~ `, ` ~ eval(to) ~ `)`;
-
-    case "Makefile.AddPrefix":
-        auto prefix = expression.children[0];
-        auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array.join(" ")`;
-
-    case "Makefile.AddSuffix":
-        auto suffix = expression.children[0];
-        auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array.join(" ")`;
-
-
+        return translateFunction(expression);
+    case "Makefile.Variable":
+        return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
+    case "Makefile.String":
+    case "Makefile.ErrorString":
+        return translateLiteralString(expression.matches.join);
     default:
         throw new Exception("Unknown expression " ~ expression.name);
     }
 }
 
-string evalLiteralString(in string str) {
+string translateFunction(in ParseTree function_) {
+    auto name = function_.children[0].matches.join;
+    switch(name) {
+    case "addsuffix":
+        auto suffix = translate(function_.children[1]);
+        auto names = translate(function_.children[2]);
+        return names ~ `.split(" ").map!(a => a ~ ` ~ suffix ~ `).array.join(" ")`;
+
+    case "addprefix":
+        auto prefix = translate(function_.children[1]);
+        auto names = translate(function_.children[2]);
+        return names ~ `.split(" ").map!(a => ` ~ prefix ~ ` ~ a).array.join(" ")`;
+
+    case "subst":
+        auto from = translate(function_.children[1]);
+        auto to = translate(function_.children[2]);
+        auto text = translate(function_.children[3]);
+        return text ~ `.replace(` ~ from ~ `, ` ~ to ~ `)`;
+
+    case "if":
+        auto cond = translate(function_.children[1]);
+        auto trueBranch = translate(function_.children[2]);
+        auto elseBranch = function_.children.length > 3 ? translate(function_.children[3]) : `""`;
+        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ elseBranch;
+
+    case "findstring":
+        return `findstring(` ~ translate(function_.children[1]) ~ `, ` ~ translate(function_.children[2]) ~ `)`;
+
+    case "shell":
+        return `executeShell(` ~ translate(function_.children[1]) ~ `).output`;
+
+    case "basename":
+        return `stripExtension(` ~ translate(function_.children[1]) ~ `)`;
+
+    default:
+        throw new Exception("Unknown function " ~ name);
+    }
+}
+
+
+string translateLiteralString(in string str) {
     auto repl = str
         .replace(`\`, `\\`)
         .replace(`"`, `\"`)
@@ -284,6 +289,11 @@ version(unittest) {
     makeVarShouldBe!"QUIET"("foo");
 }
 
+@("Top-level assignment to nothing") unittest {
+    mixin TestMakeToReggae!(["QUIET:="]);
+    makeVarShouldBe!"QUIET"("");
+}
+
 
 @("Comments are not ignored") unittest {
     auto parseTree = Makefile(
@@ -294,11 +304,6 @@ version(unittest) {
     "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
 }
 
-
-@("Top-level assignment to nothing") unittest {
-    mixin TestMakeToReggae!(["QUIET:="]);
-    makeVarShouldBe!"QUIET"("");
-}
 
 //this file can't mixin and use the code since
 //it depends on runtime (reading the file)
@@ -496,7 +501,7 @@ version(unittest) {
              "endif",
                 ]);
         assert(0, "Should never get here");
-    } catch(Throwable t) {}
+    } catch(Exception ex) {}
 }
 
 @("error function with user vars") unittest {
@@ -506,6 +511,19 @@ version(unittest) {
          "  $(error Model is not set for $(foo))",
          "endif",
             ]);
+}
+
+@("error function as in phobos") unittest {
+    try {
+        mixin TestMakeToReggae!(
+            ["ifneq ($(BUILD),release)",
+             "    ifneq ($(BUILD),debug)",
+             "        $(error Unrecognized BUILD=$(BUILD), must be 'debug' or 'release')",
+             "    endif",
+             "endif",
+                ]);
+    assert(0, "Should never get here");
+    } catch(Exception ex) { }
 }
 
 
@@ -594,8 +612,6 @@ version(unittest) {
 }
 
 
-// .a applied to only the last element - must split by space
-@ShouldFail
 @("addsuffix subst with user vars") unittest {
     mixin TestMakeToReggaeUserVars!(
         ["DOTLIB": ".a"],
@@ -609,11 +625,16 @@ version(unittest) {
     makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
 }
 
-// leroot/ only applied to first element, .a only to last element
-@ShouldFail
 @("addprefix addsuffix subst with user vars") unittest {
     mixin TestMakeToReggaeUserVars!(
         ["ROOT": "leroot/", "DOTLIB": ".a"],
         ["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
     makeVarShouldBe!"P2LIB"("leroot/fEEt.a leroot/on.a leroot/the.a leroot/strEEt.a");
+}
+
+@("basename") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["DRUNTIME": "druntime.foo"],
+        ["DRUNTIMESO = $(basename $(DRUNTIME)).so.a"]);
+    makeVarShouldBe!"DRUNTIMESO"("druntime.so.a");
 }
