@@ -487,42 +487,25 @@ version(unittest) {
     } else {}
 }
 
+@("error function with no vars") unittest {
+    try {
+        mixin TestMakeToReggae!(
+            ["ifeq (,$(MODEL))",
+             "  $(error Model is not set for $(foo))",
+             "endif",
+                ]);
+        assert(0, "Should never get here");
+    } catch(Throwable t) {}
+}
 
-// @("ifeq with space and variable on the left side") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "  OS:=osx",
-//          "endif",
-//          "ifeq (,$(MODEL))",
-//          "  ifeq ($(OS), solaris)",
-//          "    uname_M:=$(shell isainfo -n)",
-//          "  endif",
-//          "endif",
-//         ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`,
-//          `if("" == consultVar("MODEL", "")) {`,
-//          `    if(consultVar("OS", "") == "solaris") {`,
-//          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
-
-// @("error statement 1") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(MODEL))",
-//          "  $(error Model is not set for $(foo))",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("MODEL", "")) {`,
-//          `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
-//          `}`,
-//             ]);
-// }
+@("error function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "64"],
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set for $(foo))",
+         "endif",
+            ]);
+}
 
 // @("error statement 2") unittest {
 //     auto parseTree = Makefile(
