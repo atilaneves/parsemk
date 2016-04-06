@@ -589,15 +589,15 @@ version(unittest) {
 // }
 
 
-// @("+= var not set") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["BUILD": "debug"],
-//         ["ifeq ($(BUILD),debug)",
-//          "  CFLAGS += -g",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"CFLAGS"("-g");
-// }
+@("+= var not set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
+            ]);
+    makeVarShouldBe!"CFLAGS"("-g");
+}
 
 
 @("+= var set") unittest {
