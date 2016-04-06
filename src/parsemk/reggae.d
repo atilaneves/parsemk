@@ -207,6 +207,9 @@ string translateFunction(in ParseTree function_) {
         auto elseBranch = function_.children.length > 3 ? translate(function_.children[3]) : `""`;
         return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ elseBranch;
 
+    case "findstring":
+        return `findstring(` ~ translate(function_.children[1]) ~ `, ` ~ translate(function_.children[2]) ~ `)`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -573,16 +576,16 @@ version(unittest) {
 //     makeVarShouldBe!"FOO_SET"("1");
 // }
 
-// @("findstring") unittest {
-//     mixin TestMakeToReggae!(
-//         ["uname_S:=Linux",
-//          "uname_M:=x86_64",
-//          "is64:=$(findstring $(uname_M),x86_64 amd64)",
-//          "isMac:=$(findstring $(uname_S),Darwin MACOS AppleStuff)",
-//             ]);
-//     makeVarShouldBe!"is64"("x86_64");
-//     makeVarShouldBe!"isMac"("");
-// }
+@("findstring") unittest {
+    mixin TestMakeToReggae!(
+        ["uname_S:=Linux",
+         "uname_M:=x86_64",
+         "is64:=$(findstring $(uname_M),x86_64 amd64)",
+         "isMac:=$(findstring $(uname_S),Darwin MACOS AppleStuff)",
+            ]);
+    makeVarShouldBe!"is64"("x86_64");
+    makeVarShouldBe!"isMac"("");
+}
 
 @("override with if and no user vars") unittest {
     mixin TestMakeToReggae!(["override PIC:=$(if $(PIC),-fPIC,)"]);
