@@ -193,6 +193,12 @@ string translateFunction(in ParseTree function_) {
         auto names = translate(function_.children[2]);
         return names ~ `.split(" ").map!(a => ` ~ prefix ~ ` ~ a).array.join(" ")`;
 
+    case "subst":
+        auto from = translate(function_.children[1]);
+        auto to = translate(function_.children[2]);
+        auto text = translate(function_.children[3]);
+        return text ~ `.replace(` ~ from ~ `, ` ~ to ~ `)`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -604,10 +610,10 @@ version(unittest) {
 // }
 
 
-// @("subst") unittest {
-//     mixin TestMakeToReggae!(["P2LIB=$(subst ee,EE,feet on the street)"]);
-//     makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
-// }
+@("subst") unittest {
+    mixin TestMakeToReggae!(["P2LIB=$(subst ee,EE,feet on the street)"]);
+    makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
+}
 
 @("addprefix") unittest {
     mixin TestMakeToReggae!(["FOO=$(addprefix std/,algorithm container)"]);
