@@ -12,8 +12,9 @@ Makefile:
     IfNotEqual        <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else              <- Spacing "else" endOfLine Statement+
     EndIf             <- Spacing  "endif" endOfLine
-    SimpleStatement   <- Assignment / Include / Comment / Error / Override / Empty
+    SimpleStatement   <- Assignment / PlusEqual / Include / Comment / Error / Override / Empty
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") EmbeddedString
+    PlusEqual         <- Spacing VariableDecl Spacing "+=" Spacing EmbeddedString
     VariableDecl      <- identifier
     Expression     <- Function / Variable / ArgString
     ArgString         <- NonEmptyArgString / EmptyString

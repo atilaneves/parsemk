@@ -105,6 +105,11 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         // the slice gets rid of trailing ")"
         return [`throw new Exception(` ~ embedded.children[0 .. $-1].map!eval.join(` ~ `) ~ `);`];
 
+    case "Makefile.PlusEqual":
+        auto var = statement.children[0].matches.join;
+        auto val = eval(statement.children[1]);
+        return [makeVar(var) ~ ` = ` ~ consultVar(var) ~ ` ~ ` ~ val ~ `;`];
+
     case "Makefile.Empty":
         return [];
 
@@ -113,6 +118,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     }
 }
 
+
 string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     // assignments at top-level need to consult userVars in order for
     // the values to be overridden at the command line.
@@ -120,9 +126,22 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     auto var = statement.children[0].matches.join;
     auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
     return topLevel
-        ? [`makeVars["` ~ var ~ `"] = consultVar("` ~ var ~ `", ` ~ val ~ `);`]
-        : [`makeVars["` ~ var ~ `"] = ` ~ val ~ `;`];
+        ? [makeVar(var) ~ ` = ` ~ consultVar(var, val) ~ `;`]
+        : [makeVar(var) ~ ` = ` ~ val ~ `;`];
 }
+
+private string makeVar(in string varName) {
+    return `makeVars["` ~ varName ~ `"]`;
+}
+
+private string consultVar(in string varName) {
+    return `consultVar("` ~ varName ~ `")`;
+}
+
+private string consultVar(in string varName, in string default_) {
+    return `consultVar("` ~ varName ~ `", ` ~ default_ ~ `)`;
+}
+
 
 string eval(in ParseTree expression) {
     switch(expression.name) {
@@ -413,5 +432,18 @@ string eval(in ParseTree expression) {
     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
+            ]);
+}
+
+@("+=") unittest {
+    auto parseTree = Makefile(
+        ["ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
+            ].join("\n") ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`if(consultVar("BUILD", "") == "debug") {`,
+         `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
+         `}`,
             ]);
 }
