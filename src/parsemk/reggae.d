@@ -43,6 +43,7 @@ string toReggaeOutput(ParseTree parseTree) {
  Automatically generated from parsing a Makefile, do not edit by hand
  */
 import std.algorithm;
+import std.process;
 string[string] makeVars; // dynamic variables
 string consultVar(in string var, in string default_ = "") {
     return var in makeVars ? makeVars[var] : userVars.get(var, default_);
@@ -239,6 +240,7 @@ version(unittest) {
 
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
+        //pragma(msg, code);
         mixin(code);
 
         string access(string var)() {
@@ -439,24 +441,51 @@ version(unittest) {
 }
 
 
-// @("shell commands") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,$(OS))",
-//          "  uname_S:=$(shell uname -s)",
-//          "  ifeq (Darwin,$(uname_S))",
-//          "    OS:=osx",
-//          "  endif",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == consultVar("OS", "")) {`,
-//          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-//          `    if("Darwin" == consultVar("uname_S", "")) {`,
-//          `        makeVars["OS"] = "osx";`,
-//          `    }`,
-//          `}`,
-//             ]);
-// }
+@("shell function no user vars Darwin") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldNotBeSet!"OS";
+    } else {}
+}
+
+@("shell function no user vars Linux") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=DefinitelyLinux",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldBe!"OS"("DefinitelyLinux");
+    } else {}
+}
+
+@("shell function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldNotBeSet!"uname_S";
+        makeVarShouldNotBeSet!"OS";
+    } else {}
+}
 
 
 // @("ifeq with space and variable on the left side") unittest {
