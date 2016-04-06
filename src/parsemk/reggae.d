@@ -202,12 +202,12 @@ string eval(in ParseTree expression) {
     case "Makefile.AddPrefix":
         auto prefix = expression.children[0];
         auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array`;
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array.join(" ")`;
 
     case "Makefile.AddSuffix":
         auto suffix = expression.children[0];
         auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array`;
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array.join(" ")`;
 
 
     default:
@@ -577,19 +577,15 @@ version(unittest) {
     makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
 }
 
-// @("addprefix") unittest {
-//     auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
-//             ]);
-// }
+@("addprefix") unittest {
+    mixin TestMakeToReggae!(["FOO=$(addprefix std/,algorithm container)"]);
+    makeVarShouldBe!"FOO"("std/algorithm std/container");
+}
 
-// @("addsuffix") unittest {
-//     auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
-//             ]);
-// }
+@("addsuffix") unittest {
+    mixin TestMakeToReggae!(["FOO=$(addsuffix .c,foo bar)"]);
+    makeVarShouldBe!"FOO"("foo.c bar.c");
+}
 
 // @("addsuffix subst") unittest {
 //     auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
