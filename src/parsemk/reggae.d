@@ -152,13 +152,13 @@ string eval(in ParseTree expression) {
     case "Makefile.ArgString":
     case "Makefile.NonEmptyString":
     case "Makefile.FreeFormString":
-        return `"` ~ expression.matches.join ~ `"`;
+        return evalLiteralString(expression.matches.join);
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
     case "Makefile.Function":
     case "Makefile.FuncArg":
     case "Makefile.FuncLastArg":
-        return expression.children.length ? eval(expression.children[0]) : `"` ~ expression.matches.join ~ `"`;
+        return expression.children.length ? eval(expression.children[0]) : evalLiteralString(expression.matches.join);
     case "Makefile.Shell":
         return `executeShell(` ~ eval(expression.children[0]) ~ `).output`;
     case "Makefile.FindString":
@@ -174,6 +174,14 @@ string eval(in ParseTree expression) {
     }
 }
 
+string evalLiteralString(in string str) {
+    auto repl = str
+        .replace(`\`, `\\`)
+        .replace(`"`, `\"`)
+        ;
+
+    return `"` ~ repl ~ `"`;
+}
 
 @("Variable assignment with := to auto QUIET") unittest {
     auto parseTree = Makefile("QUIET:=true\n");
@@ -193,6 +201,7 @@ string eval(in ParseTree expression) {
         "\n"
         "\n"
         "QUIET:=true\n");
+    writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`// this is a comment`,
          `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
@@ -445,5 +454,13 @@ string eval(in ParseTree expression) {
         [`if(consultVar("BUILD", "") == "debug") {`,
          `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
          `}`,
+            ]);
+}
+
+@("shell in assigment") unittest {
+    auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
+    writeln(parseTree);
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
             ]);
 }

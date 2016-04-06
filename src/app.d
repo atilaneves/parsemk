@@ -8,8 +8,14 @@ import std.array;
 
 void main(string[] args) {
     auto input = cast(string)read(args[1]);
-    input = input.replace("\\\n", "");
-    auto parseTree = Makefile(input);
+    auto parseTree = Makefile(input.sanitize);
     //stderr.writeln(parseTree);
     writeln(toReggaeOutput(parseTree));
+}
+
+string sanitize(in string input) {
+    return input
+        .replace("\\\n", "")
+        //.replace(`\\`, `\\\\`)
+        ;
 }

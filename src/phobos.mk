@@ -92,3 +92,21 @@ endif
 
 # Set CFLAGS
 CFLAGS=$(MODEL_FLAG) -fPIC -DHAVE_UNISTD_H
+# Set DFLAGS
+DFLAGS=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -dip25 $(MODEL_FLAG) $(PIC)
+ifeq ($(BUILD),debug)
+	DFLAGS += -g -debug
+else
+	DFLAGS += -O -release
+endif
+
+# Set DOTOBJ and DOTEXE
+ifeq (,$(findstring win,$(OS)))
+	DOTOBJ:=.o
+	DOTEXE:=
+	PATHSEP:=/
+else
+	DOTOBJ:=.obj
+	DOTEXE:=.exe
+	PATHSEP:=$(shell echo "\\")
+endif

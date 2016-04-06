@@ -16,11 +16,11 @@ Makefile:
     Assignment        <- Spacing VariableDecl Spacing (":=" / "=") EmbeddedString
     PlusEqual         <- Spacing VariableDecl Spacing "+=" Spacing EmbeddedString
     VariableDecl      <- identifier
-    Expression     <- Function / Variable / ArgString
+    Expression        <- Function / Variable / ArgString
     ArgString         <- NonEmptyArgString / EmptyString
     NonEmptyArgString <- (!")" !"," .)+
     Function          <- Shell / FindString / IfFunc
-    Shell             <- Spacing "$(shell " NonEmptyString ")"
+    Shell             <- Spacing "$(shell " ArgString ")"
     FindString        <- Spacing "$(findstring " Expression "," Expression ")"
     IfFunc            <- Spacing "$(if " Expression "," Expression "," Expression ")"
     LiteralString     <- NonEmptyString / EmptyString
