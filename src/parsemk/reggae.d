@@ -324,20 +324,25 @@ version(unittest) {
     }
 }
 
-// @("Top-level assignment to QUIET with no customization") unittest {
-//     mixin TestMakeToReggae!(["QUIET:=true"]);
-//     makeVarShouldBe!"QUIET"("true");
-// }
+@("Top-level assignment to QUIET with no customization") unittest {
+    mixin TestMakeToReggae!(["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("true");
+}
 
-// @("Top-level assignment to FOO with no customization") unittest {
-//     mixin TestMakeToReggae!(["FOO:=bar"]);
-//     makeVarShouldBe!"FOO"("bar");
-// }
+@("Top-level assignment to FOO with no customization") unittest {
+    mixin TestMakeToReggae!(["FOO:=bar"]);
+    makeVarShouldBe!"FOO"("bar");
+}
 
-// @("Top-level assignment to QUIET with customization") unittest {
-//     mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
-//     makeVarShouldBe!"QUIET"("foo");
-// }
+@("Top-level assignment to QUIET with customization") unittest {
+    mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("foo");
+}
+
+@("Top-level assignment to nothing") unittest {
+    mixin TestMakeToReggae!(["QUIET:="]);
+    makeVarShouldBe!"QUIET"("");
+}
 
 
 // @("Comments are not ignored") unittest {
@@ -349,11 +354,6 @@ version(unittest) {
 //     "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
 // }
 
-
-// @("Top-level assignment to nothing") unittest {
-//     mixin TestMakeToReggae!(["QUIET:="]);
-//     makeVarShouldBe!"QUIET"("");
-// }
 
 // //this file can't mixin and use the code since
 // //it depends on runtime (reading the file)
