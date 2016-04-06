@@ -527,6 +527,16 @@ version(unittest) {
     makeVarShouldBe!"FOO_SET"("1");
 }
 
+@("findstring") unittest {
+    mixin TestMakeToReggae!(
+        ["uname_S:=Linux",
+         "uname_M:=x86_64",
+         "is64:=$(findstring $(uname_M),x86_64 amd64)",
+         "isMac:=$(findstring $(uname_S),Darwin MACOS AppleStuff)",
+            ]);
+    makeVarShouldBe!"is64"("x86_64");
+    makeVarShouldBe!"isMac"("");
+}
 
 // @("ifneq findstring") unittest {
 //     auto parseTree = Makefile(
