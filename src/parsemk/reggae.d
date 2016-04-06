@@ -147,6 +147,7 @@ string eval(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
     case "Makefile.EmbeddedString":
+    case "Makefile.SpaceArgExpression":
         return expression.children.map!eval.join(` ~ `);
     case "Makefile.LiteralString":
     case "Makefile.ArgString":
@@ -492,7 +493,6 @@ string evalLiteralString(in string str) {
 
 @("addprefix") unittest {
     auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
-    writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
             ]);
@@ -500,8 +500,25 @@ string evalLiteralString(in string str) {
 
 @("addsuffix") unittest {
     auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
-    writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
             ]);
+}
+
+@("addsuffix subst") unittest {
+    auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["FOO"] = consultVar("FOO", ["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array);`,
+            ]);
+
+}
+
+@("addprefix addsuffix subst") unittest {
+    //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
+    auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
+    writeln(parseTree);
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["P2LIB"] = consultVar("P2LIB", [["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array].map!(a => consultVar("ROOT", "") ~ a).array);`,
+            ]);
+
 }

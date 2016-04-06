@@ -36,8 +36,9 @@ Makefile:
     EmbeddedString    <- (Function? Variable? FreeFormString?)*
     FreeFormString    <- (!endOfLine !"$" .)*
     Subst             <- Spacing "$(subst " Expression "," Expression "," Expression ")"
-    AddPrefix         <- Spacing "$(addprefix " Expression "," (SpaceArgString " "?)+ ")"
-    AddSuffix         <- Spacing "$(addsuffix " Expression "," (SpaceArgString " "?)+ ")"
+    AddPrefix         <- Spacing "$(addprefix " Expression "," (SpaceArgExpression " "?)+ ")"
+    AddSuffix         <- Spacing "$(addsuffix " Expression "," (SpaceArgExpression " "?)+ ")"
+    SpaceArgExpression <- Function / Variable / SpaceArgString
     SpaceArgString    <- (!")" !"," !" " .)+
     Empty             <- ""
 `));
