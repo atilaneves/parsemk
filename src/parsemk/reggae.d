@@ -587,13 +587,23 @@ version(unittest) {
     makeVarShouldBe!"FOO"("foo.c bar.c");
 }
 
-// @("addsuffix subst") unittest {
-//     auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["FOO"] = consultVar("FOO", ["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array);`,
-//             ]);
+@("addsuffix subst no user vars") unittest {
+    mixin TestMakeToReggae!(["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt on the strEEt");
+}
 
+
+// @("addsuffix subst with user vars") unittest {
+//     mixin TestMakeToReggaeUserVars!(
+//         ["DOTLIB": ".a"],
+//         ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+//     "DOTLIB".shouldBeIn(userVars);
+//     consultVar("DOTLIB", "").shouldEqual(".a");
+//     makeVars["FOO"] = "FOO" in userVars ? userVars["FOO"] : ["feet on the street".replace("ee", "EE")].map!(a => a ~ consultVar("DOTLIB", "")).array.join(" ");
+//     //makeVars["FOO"].shouldEqual("bar");
+//     makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
 // }
+
 
 // @("addprefix addsuffix subst") unittest {
 //     //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
