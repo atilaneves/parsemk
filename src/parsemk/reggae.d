@@ -152,6 +152,7 @@ string eval(in ParseTree expression) {
     case "Makefile.ArgString":
     case "Makefile.NonEmptyString":
     case "Makefile.FreeFormString":
+    case "Makefile.SpaceArgString":
         return evalLiteralString(expression.matches.join);
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
@@ -173,6 +174,11 @@ string eval(in ParseTree expression) {
         auto to = expression.children[1];
         auto text = expression.children[2];
         return eval(text) ~ `.replace(` ~ eval(from) ~ `, ` ~ eval(to) ~ `)`;
+
+    case "Makefile.AddPrefix":
+        auto prefix = expression.children[0];
+        auto names = expression.children[1..$];
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array`;
 
     default:
         throw new Exception("Unknown expression " ~ expression.name);
@@ -475,5 +481,13 @@ string evalLiteralString(in string str) {
     auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
+            ]);
+}
+
+@("addprefix") unittest {
+    auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
+    writeln(parseTree);
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
             ]);
 }
