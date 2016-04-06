@@ -593,16 +593,12 @@ version(unittest) {
 }
 
 
-// @("addsuffix subst with user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["DOTLIB": ".a"],
-//         ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
-//     "DOTLIB".shouldBeIn(userVars);
-//     consultVar("DOTLIB", "").shouldEqual(".a");
-//     makeVars["FOO"] = "FOO" in userVars ? userVars["FOO"] : ["feet on the street".replace("ee", "EE")].map!(a => a ~ consultVar("DOTLIB", "")).array.join(" ");
-//     //makeVars["FOO"].shouldEqual("bar");
-//     makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
-// }
+@("addsuffix subst with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["DOTLIB": ".a"],
+        ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
+}
 
 
 // @("addprefix addsuffix subst") unittest {
