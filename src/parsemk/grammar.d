@@ -27,29 +27,6 @@ Makefile:
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
     FileName           <- FileNameChar*
     FileNameChar       <- [a-zA-Z_0-9./]
-    Error <- ""
+    Error              <- Spacing "$(error " Expression ")"
     Empty              <- ""
-
-
-    # ArgString         <- NonEmptyArgString / EmptyString
-    # NonEmptyArgString <- (!")" !"," .)+
-    # Function          <- Shell / FindString / IfFunc / Subst / AddPrefix / AddSuffix
-    # Shell             <- Spacing "$(shell " ArgString ")"
-    # FindString        <- Spacing "$(findstring " Expression "," Expression ")"
-    # IfFunc            <- Spacing "$(if " Expression "," Expression "," Expression ")"
-    # LiteralString     <- NonEmptyString / EmptyString
-    # NonEmptyString    <- [a-zA-Z_0-9./\- :]+
-    # EmptyString       <- ""
-    # Variable          <- "$(" (!")" .)* ")"
-    # FileName          <- FileNameChar*
-    # FileNameChar      <- [a-zA-Z_0-9./]
-    # Error             <- Spacing "$(error " EmbeddedString
-    # Override          <- "override " VariableDecl ("=" / ":=") EmbeddedString
-    # EmbeddedString    <- (Function? Variable? FreeFormString?)*
-    # FreeFormString    <- (!endOfLine !"$" .)*
-    # Subst             <- Spacing "$(subst " Expression "," Expression "," Expression ")"
-    # AddPrefix         <- Spacing "$(addprefix " Expression "," (SpaceArgExpression " "?)+ ")"
-    # AddSuffix         <- Spacing "$(addsuffix " Expression "," (SpaceArgExpression " "?)+ ")"
-    # SpaceArgExpression <- Function / Variable / SpaceArgString
-    # SpaceArgString    <- (!")" !"," !" " .)+
 `));

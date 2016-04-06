@@ -543,25 +543,25 @@ version(unittest) {
     } else {}
 }
 
-// @("error function with no vars") unittest {
-//     try {
-//         mixin TestMakeToReggae!(
-//             ["ifeq (,$(MODEL))",
-//              "  $(error Model is not set for $(foo))",
-//              "endif",
-//                 ]);
-//         assert(0, "Should never get here");
-//     } catch(Throwable t) {}
-// }
+@("error function with no vars") unittest {
+    try {
+        mixin TestMakeToReggae!(
+            ["ifeq (,$(MODEL))",
+             "  $(error Model is not set for $(foo))",
+             "endif",
+                ]);
+        assert(0, "Should never get here");
+    } catch(Throwable t) {}
+}
 
-// @("error function with user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["MODEL": "64"],
-//         ["ifeq (,$(MODEL))",
-//          "  $(error Model is not set for $(foo))",
-//          "endif",
-//             ]);
-// }
+@("error function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "64"],
+        ["ifeq (,$(MODEL))",
+         "  $(error Model is not set for $(foo))",
+         "endif",
+            ]);
+}
 
 
 @("ifneq no user vars") unittest {
