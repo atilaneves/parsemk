@@ -341,19 +341,24 @@ version(unittest) {
     makeVarShouldNotBeSet!"OS";
 }
 
-// @("ifeq works correctly with no else block and non-empty comparison") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (MACOS,$(OS))",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
+@("ifeq with non-empty comparison, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("MACOS" == consultVar("OS", "")) {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+@("ifeq with non-empty comparison, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "MACOS"],
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldBe!"OS"("osx");
+}
 
 
 // @("ifeq works correctly with else block") unittest {
