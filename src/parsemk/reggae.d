@@ -192,7 +192,7 @@ string eval(in ParseTree expression) {
         auto cond = eval(expression.children[0]);
         auto trueBranch = eval(expression.children[1]);
         auto falseBranch = `""`;
-        return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
+        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
     case "Makefile.Subst":
         auto from = expression.children[0];
         auto to = expression.children[1];
@@ -538,27 +538,16 @@ version(unittest) {
     makeVarShouldBe!"isMac"("");
 }
 
-// @("ifneq findstring") unittest {
-//     auto parseTree = Makefile(
-//         ["uname_M:=x86_64",
-//          "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
-//          "  MODEL:=64",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
-//          `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
-//          `    makeVars["MODEL"] = "64";`,
-//          `}`,
-//             ]);
-// }
+@("override with if and no user vars") unittest {
+    mixin TestMakeToReggae!(["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("");
+}
 
-// @("override with if") unittest {
-//     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
-//             ]);
-// }
+@("override with if and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(["PIC": "foo"], ["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("-fPIC");
+}
+
 
 // @("+=") unittest {
 //     auto parseTree = Makefile(
