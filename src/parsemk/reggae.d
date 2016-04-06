@@ -633,14 +633,13 @@ version(unittest) {
 }
 
 
-// // .a applied to only the last element - must split by space
-// @ShouldFail
-// @("addsuffix subst with user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["DOTLIB": ".a"],
-//         ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
-//     makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
-// }
+// .a applied to only the last element - must split by space
+@("addsuffix subst with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["DOTLIB": ".a"],
+        ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
+}
 
 
 // @("addprefix addsuffix subst no user vars") unittest {
