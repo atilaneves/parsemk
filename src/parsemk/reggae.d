@@ -168,6 +168,11 @@ string eval(in ParseTree expression) {
         auto trueBranch = eval(expression.children[1]);
         auto falseBranch = `""`;
         return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
+    case "Makefile.Subst":
+        auto from = expression.children[0];
+        auto to = expression.children[1];
+        auto text = expression.children[2];
+        return eval(text) ~ `.replace(` ~ eval(from) ~ `, ` ~ eval(to) ~ `)`;
 
     default:
         throw new Exception("Unknown expression " ~ expression.name);
@@ -462,5 +467,13 @@ string evalLiteralString(in string str) {
     writeln(parseTree);
     toReggaeLines(parseTree).shouldEqual(
         [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
+            ]);
+}
+
+
+@("subst") unittest {
+    auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
             ]);
 }

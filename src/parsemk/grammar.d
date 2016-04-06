@@ -19,7 +19,7 @@ Makefile:
     Expression        <- Function / Variable / ArgString
     ArgString         <- NonEmptyArgString / EmptyString
     NonEmptyArgString <- (!")" !"," .)+
-    Function          <- Shell / FindString / IfFunc
+    Function          <- Shell / FindString / IfFunc / Subst
     Shell             <- Spacing "$(shell " ArgString ")"
     FindString        <- Spacing "$(findstring " Expression "," Expression ")"
     IfFunc            <- Spacing "$(if " Expression "," Expression "," Expression ")"
@@ -35,5 +35,6 @@ Makefile:
     Override          <- "override " VariableDecl ("=" / ":=") EmbeddedString
     EmbeddedString    <- (Function? Variable? FreeFormString?)*
     FreeFormString    <- (!endOfLine !"$" .)*
+    Subst             <- Spacing "$(subst " Expression "," Expression "," Expression ")"
     Empty             <- ""
 `));

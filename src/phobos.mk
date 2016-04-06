@@ -110,3 +110,30 @@ else
 	DOTEXE:=.exe
 	PATHSEP:=$(shell echo "\\")
 endif
+
+LINKDL:=$(if $(findstring $(OS),linux),-L-ldl,)
+
+# use timelimit to avoid deadlocks if available
+TIMELIMIT:=$(if $(shell which timelimit 2>/dev/null || true),timelimit -t 60 ,)
+
+# Set VERSION, where the file is that contains the version string
+VERSION=../dmd/VERSION
+
+# Set LIB, the ultimate target
+ifeq (,$(findstring win,$(OS)))
+	LIB:=$(ROOT)/libphobos2.a
+	# 2.064.2 => libphobos2.so.0.64.2
+	# 2.065 => libphobos2.so.0.65.0
+	# MAJOR version is 0 for now, which means the ABI is still unstable
+	MAJOR:=0
+	MINOR:=$(shell awk -F. '{ print int($$2) }' $(VERSION))
+	PATCH:=$(shell awk -F. '{ print int($$3) }' $(VERSION))
+	# SONAME doesn't use patch level (ABI compatible)
+	SONAME:=libphobos2.so.$(MAJOR).$(MINOR)
+	LIBSO:=$(ROOT)/$(SONAME).$(PATCH)
+else
+	LIB:=$(ROOT)/phobos.lib
+endif
+
+################################################################################
+MAIN = $(ROOT)/emptymain.d
