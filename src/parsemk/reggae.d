@@ -81,7 +81,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         // one of the sides could be empty
         auto numExpressions = ifBlock.children.count!(a => a.name == "Makefile.Expression");
         auto lhs = ifBlock.children[0];
-        auto rhs = numExpressions > 1 ? ifBlock.children[1] : ParseTree("Makefile.EmptyString");
+        auto rhs = numExpressions > 1 ? ifBlock.children[1] : ParseTree("Makefile.String");
         auto firstStatementIndex = ifBlock.children.countUntil!(a => a.name == "Makefile.Statement");
         auto ifStatements = ifBlock.children[firstStatementIndex .. $];
         auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
@@ -165,7 +165,6 @@ string translate(in ParseTree expression) {
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
     case "Makefile.String":
     case "Makefile.ErrorString":
-    case "Makefile.EmptyString":
         return translateLiteralString(expression.matches.join);
     default:
         throw new Exception("Unknown expression " ~ expression.name);
@@ -208,54 +207,6 @@ string translateFunction(in ParseTree function_) {
     }
 }
 
-string translateOld(in ParseTree expression) {
-    switch(expression.name) {
-    case "Makefile.Expression":
-    case "Makefile.EmbeddedString":
-    case "Makefile.SpaceArgExpression":
-        return expression.children.map!translate.join(` ~ `);
-    case "Makefile.LiteralString":
-    case "Makefile.ArgString":
-    case "Makefile.NonEmptyString":
-    case "Makefile.FreeFormString":
-    case "Makefile.SpaceArgString":
-        return translateLiteralString(expression.matches.join);
-    case "Makefile.Variable":
-        return `consultVar("` ~ unsigil(expression.matches.join) ~ `", "")`;
-    case "Makefile.Function":
-    case "Makefile.FuncArg":
-    case "Makefile.FuncLastArg":
-        return expression.children.length ? translate(expression.children[0]) : translateLiteralString(expression.matches.join);
-    case "Makefile.Shell":
-        return `executeShell(` ~ translate(expression.children[0]) ~ `).output`;
-    case "Makefile.FindString":
-        return `findstring(` ~ translate(expression.children[0]) ~ `, ` ~ translate(expression.children[1]) ~ `)`;
-    case "Makefile.IfFunc":
-        auto cond = translate(expression.children[0]);
-        auto trueBranch = translate(expression.children[1]);
-        auto falseBranch = `""`;
-        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
-    case "Makefile.Subst":
-        auto from = expression.children[0];
-        auto to = expression.children[1];
-        auto text = expression.children[2];
-        return translate(text) ~ `.replace(` ~ translate(from) ~ `, ` ~ translate(to) ~ `)`;
-
-    case "Makefile.AddPrefix":
-        auto prefix = expression.children[0];
-        auto names = expression.children[1..$];
-        return `[` ~ names.map!translate.join(", ") ~ `].map!(a => ` ~ translate(prefix) ~ ` ~ a).array.join(" ")`;
-
-    case "Makefile.AddSuffix":
-        auto suffix = expression.children[0];
-        auto names = expression.children[1..$];
-        return `[` ~ names.map!translate.join(", ") ~ `].map!(a => a ~ ` ~ translate(suffix) ~ `).array.join(" ")`;
-
-
-    default:
-        throw new Exception("Unknown expression " ~ expression.name);
-    }
-}
 
 string translateLiteralString(in string str) {
     auto repl = str
