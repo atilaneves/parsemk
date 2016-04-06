@@ -25,7 +25,8 @@ Makefile:
     Comment            <- Spacing "#" (!endOfLine .)*
     Include            <- "include" Spacing FileName
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
-    FileName <- ""
+    FileName           <- FileNameChar*
+    FileNameChar       <- [a-zA-Z_0-9./]
     Error <- ""
     Empty              <- ""
 

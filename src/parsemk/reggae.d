@@ -355,21 +355,21 @@ version(unittest) {
 }
 
 
-// //this file can't mixin and use the code since
-// //it depends on runtime (reading the file)
-// //it's only one line so easy to change when/if
-// //the implementation changes
-// @Serial
-// @("includes are expanded in place") unittest {
-//     auto fileName = "/tmp/inner.mk";
-//     {
-//         auto file = File(fileName, "w");
-//         file.writeln("OS:=solaris");
-//     }
-//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
-// }
+//this file can't mixin and use the code since
+//it depends on runtime (reading the file)
+//it's only one line so easy to change when/if
+//the implementation changes
+@Serial
+@("includes are expanded in place") unittest {
+    auto fileName = "/tmp/inner.mk";
+    {
+        auto file = File(fileName, "w");
+        file.writeln("OS:=solaris");
+    }
+    auto parseTree = Makefile("include " ~ fileName ~ "\n");
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
+}
 
 @("ifeq with literals and no else block") unittest {
     mixin TestMakeToReggae!(
