@@ -277,17 +277,15 @@ version(unittest) {
     makeVarShouldBe!"QUIET"("foo");
 }
 
-// @("Comments are not ignored") unittest {
-//     auto parseTree = Makefile(
-//         "# this is a comment\n"
-//         "\n"
-//         "\n"
-//         "QUIET:=true\n");
-//     writeln(parseTree);
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`// this is a comment`,
-//          `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
-// }
+
+@("Comments are not ignored") unittest {
+    auto parseTree = Makefile(
+        "# this is a comment\n"
+        "\n"
+        "\n"
+        "QUIET:=true\n");
+    "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
+}
 
 
 // @("Variables can be assigned to nothing") unittest {
