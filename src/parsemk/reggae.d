@@ -17,7 +17,7 @@ else {
 }
 
 
-string toReggaeOutput(ParseTree parseTree) {
+string toReggaeOutputWithImport(ParseTree parseTree) {
     return q{
 /**
  Automatically generated from parsing a Makefile, do not edit by hand
@@ -35,6 +35,28 @@ string findstring(in string needle, in string haystack) {
 auto _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
+}
+
+string toReggaeOutput(ParseTree parseTree) {
+    return q{
+/**
+ Automatically generated from parsing a Makefile, do not edit by hand
+ */
+import std.algorithm;
+string[string] makeVars; // dynamic variables
+string consultVar(in string var, in string default_ = "") {
+    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
+}
+// implementation of GNU make $(findstring)
+string findstring(in string needle, in string haystack) {
+    return haystack.canFind(needle) ? needle : "";
+}
+int _getBuild() }
+     ~ "{\n" ~
+    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
+     "    return 5;\n"
+     `}`).join("\n") ~ "\n";
+
 }
 
 
@@ -201,324 +223,367 @@ string evalLiteralString(in string str) {
     return `"` ~ repl ~ `"`;
 }
 
-@("Variable assignment with := to auto QUIET") unittest {
-    auto parseTree = Makefile("QUIET:=true\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
-}
+version(unittest) {
 
-@("Variable assignment with := to auto FOO") unittest {
-    auto parseTree = Makefile("FOO:=bar\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
-}
-
-@("Comments are not ignored") unittest {
-    auto parseTree = Makefile(
-        "# this is a comment\n"
-        "\n"
-        "\n"
-        "QUIET:=true\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`// this is a comment`,
-         `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
-}
-
-
-@("Variables can be assigned to nothing") unittest {
-    auto parseTree = Makefile("QUIET:=\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
-}
-
-@Serial
-@("includes are expanded in place") unittest {
-    auto fileName = "/tmp/inner.mk";
-    {
-        auto file = File(fileName, "w");
-        file.writeln("OS:=solaris");
+    mixin template TestMakeToReggaeUserVars(string[string] _userVars, string[] lines) {
+        string[string] userVars = _userVars;
+        mixin TestMakeToReggaeNoUserVars!lines;
     }
-    auto parseTree = Makefile("include " ~ fileName ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["OS"] = consultVar("OS", "solaris");`]);
-}
 
-@("ifeq works correctly with literals and no else block") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,foo)",
-         "OS=osx",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == "foo") {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
-}
-
-@("ifeq works correctly with no else block") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(OS))",
-         "OS=osx",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
-}
-
-@("ifeq works correctly with no else block and non-empty comparison") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (MACOS,$(OS))",
-         "OS=osx",
-         "endif",
-            ].join("\n") ~ "\n");
-
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
-}
-
-
-@("ifeq works correctly with else block") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(BUILD))",
-         "BUILD_WAS_SPECIFIED=0",
-         "BUILD=release",
-         "else",
-         "BUILD_WAS_SPECIFIED=1",
-         "endif",
-            ].join("\n") ~ "\n");
-
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("BUILD", "")) {`,
-         `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
-         `    makeVars["BUILD"] = "release";`,
-         `} else {`,
-         `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
-         `}`
-        ]);
-}
-
-@Serial
-@("includes with ifeq are expanded in place") unittest {
-    auto fileName = "/tmp/inner.mk";
-    {
-        auto file = File(fileName, "w");
-        file.writeln("ifeq (MACOS,$(OS))");
-        file.writeln("  OS:=osx");
-        file.writeln("endif");
+    mixin template TestMakeToReggae(string[] lines) {
+        string[string] userVars;
+        mixin TestMakeToReggaeNoUserVars!lines;
     }
-    auto parseTree = Makefile("include " ~ fileName ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`]);
+
+    mixin template TestMakeToReggaeNoUserVars(string[] lines) {
+
+        enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
+        enum code = toReggaeOutput(parseTree);
+        mixin(code);
+
+        string access(string var)() {
+            return makeVars[var];
+        }
+
+        auto build = _getBuild();
+
+        void makeVarShouldBe(string varName)(string value) {
+            try {
+                makeVars[varName].shouldEqual(value);
+            } catch(Throwable t) {
+                writeln(parseTree);
+                writeln("----------------------------------------\n",
+                        code,
+                        "----------------------------------------\n");
+                throw t;
+            }
+        }
+    }
 }
 
-@("nested ifeq") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(OS))",
-         "  uname_S:=Linux",
-         "  ifeq (Darwin,$(uname_S))",
-         "    OS:=osx",
-         "  endif",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["uname_S"] = "Linux";`,
-         `    if("Darwin" == consultVar("uname_S", "")) {`,
-         `        makeVars["OS"] = "osx";`,
-         `    }`,
-         `}`,
-            ]);
+@("Top-level assignment with no customization") unittest {
+    mixin TestMakeToReggae!(["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("true");
 }
 
-
-@("Refer to declared variable") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(MODEL))",
-         "  MODEL:=64",
-         "endif",
-         "MODEL_FLAG:=-m$(MODEL)",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("MODEL", "")) {`,
-         `    makeVars["MODEL"] = "64";`,
-         `}`,
-         `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
-            ]);
+@("Top-level assignment with customization") unittest {
+    mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("true");
 }
 
 
-@("shell commands") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(OS))",
-         "  uname_S:=$(shell uname -s)",
-         "  ifeq (Darwin,$(uname_S))",
-         "    OS:=osx",
-         "  endif",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-         `    if("Darwin" == consultVar("uname_S", "")) {`,
-         `        makeVars["OS"] = "osx";`,
-         `    }`,
-         `}`,
-            ]);
-}
+// @("Variable assignment with := to auto FOO") unittest {
+//     auto parseTree = Makefile("FOO:=bar\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
+// }
+
+// @("Comments are not ignored") unittest {
+//     auto parseTree = Makefile(
+//         "# this is a comment\n"
+//         "\n"
+//         "\n"
+//         "QUIET:=true\n");
+//     writeln(parseTree);
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`// this is a comment`,
+//          `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
+// }
 
 
-@("ifeq with space and variable on the left side") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (MACOS,$(OS))",
-         "  OS:=osx",
-         "endif",
-         "ifeq (,$(MODEL))",
-         "  ifeq ($(OS), solaris)",
-         "    uname_M:=$(shell isainfo -n)",
-         "  endif",
-         "endif",
-        ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`,
-         `if("" == consultVar("MODEL", "")) {`,
-         `    if(consultVar("OS", "") == "solaris") {`,
-         `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
-         `    }`,
-         `}`,
-            ]);
-}
+// @("Variables can be assigned to nothing") unittest {
+//     auto parseTree = Makefile("QUIET:=\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
+// }
 
-@("error statement 1") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(MODEL))",
-         "  $(error Model is not set for $(foo))",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("MODEL", "")) {`,
-         `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
-         `}`,
-            ]);
-}
+// @Serial
+// @("includes are expanded in place") unittest {
+//     auto fileName = "/tmp/inner.mk";
+//     {
+//         auto file = File(fileName, "w");
+//         file.writeln("OS:=solaris");
+//     }
+//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["OS"] = consultVar("OS", "solaris");`]);
+// }
 
-@("error statement 2") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(OS))",
-         "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
-         "endif",
-         ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
-         `}`,
-            ]);
-}
+// @("ifeq works correctly with literals and no else block") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,foo)",
+//          "OS=osx",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == "foo") {`,
+//          `    makeVars["OS"] = "osx";`,
+//          `}`
+//         ]);
+// }
 
+// @("ifeq works correctly with no else block") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(OS))",
+//          "OS=osx",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("OS", "")) {`,
+//          `    makeVars["OS"] = "osx";`,
+//          `}`
+//         ]);
+// }
 
-@("ifneq") unittest {
-    auto parseTree = Makefile(
-        ["ifneq (,$(FOO))",
-         "  FOO_SET:=1",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" != consultVar("FOO", "")) {`,
-         `    makeVars["FOO_SET"] = "1";`,
-         `}`,
-            ]);
-}
+// @("ifeq works correctly with no else block and non-empty comparison") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (MACOS,$(OS))",
+//          "OS=osx",
+//          "endif",
+//             ].join("\n") ~ "\n");
 
-@("ifneq findstring") unittest {
-    auto parseTree = Makefile(
-        ["uname_M:=x86_64",
-         "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
-         "  MODEL:=64",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
-         `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
-         `    makeVars["MODEL"] = "64";`,
-         `}`,
-            ]);
-}
-
-@("override with if") unittest {
-    auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
-            ]);
-}
-
-@("+=") unittest {
-    auto parseTree = Makefile(
-        ["ifeq ($(BUILD),debug)",
-         "  CFLAGS += -g",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if(consultVar("BUILD", "") == "debug") {`,
-         `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
-         `}`,
-            ]);
-}
-
-@("shell in assigment") unittest {
-    auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
-            ]);
-}
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("MACOS" == consultVar("OS", "")) {`,
+//          `    makeVars["OS"] = "osx";`,
+//          `}`
+//         ]);
+// }
 
 
-@("subst") unittest {
-    auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
-            ]);
-}
+// @("ifeq works correctly with else block") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(BUILD))",
+//          "BUILD_WAS_SPECIFIED=0",
+//          "BUILD=release",
+//          "else",
+//          "BUILD_WAS_SPECIFIED=1",
+//          "endif",
+//             ].join("\n") ~ "\n");
 
-@("addprefix") unittest {
-    auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
-            ]);
-}
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("BUILD", "")) {`,
+//          `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
+//          `    makeVars["BUILD"] = "release";`,
+//          `} else {`,
+//          `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
+//          `}`
+//         ]);
+// }
 
-@("addsuffix") unittest {
-    auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
-            ]);
-}
+// @Serial
+// @("includes with ifeq are expanded in place") unittest {
+//     auto fileName = "/tmp/inner.mk";
+//     {
+//         auto file = File(fileName, "w");
+//         file.writeln("ifeq (MACOS,$(OS))");
+//         file.writeln("  OS:=osx");
+//         file.writeln("endif");
+//     }
+//     auto parseTree = Makefile("include " ~ fileName ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("MACOS" == consultVar("OS", "")) {`,
+//          `    makeVars["OS"] = "osx";`,
+//          `}`]);
+// }
 
-@("addsuffix subst") unittest {
-    auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array);`,
-            ]);
+// @("nested ifeq") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(OS))",
+//          "  uname_S:=Linux",
+//          "  ifeq (Darwin,$(uname_S))",
+//          "    OS:=osx",
+//          "  endif",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("OS", "")) {`,
+//          `    makeVars["uname_S"] = "Linux";`,
+//          `    if("Darwin" == consultVar("uname_S", "")) {`,
+//          `        makeVars["OS"] = "osx";`,
+//          `    }`,
+//          `}`,
+//             ]);
+// }
 
-}
 
-@("addprefix addsuffix subst") unittest {
-    //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-    auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["P2LIB"] = consultVar("P2LIB", [["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array].map!(a => consultVar("ROOT", "") ~ a).array);`,
-            ]);
+// @("Refer to declared variable") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(MODEL))",
+//          "  MODEL:=64",
+//          "endif",
+//          "MODEL_FLAG:=-m$(MODEL)",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("MODEL", "")) {`,
+//          `    makeVars["MODEL"] = "64";`,
+//          `}`,
+//          `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
+//             ]);
+// }
 
-}
+
+// @("shell commands") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(OS))",
+//          "  uname_S:=$(shell uname -s)",
+//          "  ifeq (Darwin,$(uname_S))",
+//          "    OS:=osx",
+//          "  endif",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("OS", "")) {`,
+//          `    makeVars["uname_S"] = executeShell("uname -s").output;`,
+//          `    if("Darwin" == consultVar("uname_S", "")) {`,
+//          `        makeVars["OS"] = "osx";`,
+//          `    }`,
+//          `}`,
+//             ]);
+// }
+
+
+// @("ifeq with space and variable on the left side") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (MACOS,$(OS))",
+//          "  OS:=osx",
+//          "endif",
+//          "ifeq (,$(MODEL))",
+//          "  ifeq ($(OS), solaris)",
+//          "    uname_M:=$(shell isainfo -n)",
+//          "  endif",
+//          "endif",
+//         ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("MACOS" == consultVar("OS", "")) {`,
+//          `    makeVars["OS"] = "osx";`,
+//          `}`,
+//          `if("" == consultVar("MODEL", "")) {`,
+//          `    if(consultVar("OS", "") == "solaris") {`,
+//          `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
+//          `    }`,
+//          `}`,
+//             ]);
+// }
+
+// @("error statement 1") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(MODEL))",
+//          "  $(error Model is not set for $(foo))",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("MODEL", "")) {`,
+//          `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
+//          `}`,
+//             ]);
+// }
+
+// @("error statement 2") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq (,$(OS))",
+//          "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
+//          "endif",
+//          ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" == consultVar("OS", "")) {`,
+//          `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
+//          `}`,
+//             ]);
+// }
+
+
+// @("ifneq") unittest {
+//     auto parseTree = Makefile(
+//         ["ifneq (,$(FOO))",
+//          "  FOO_SET:=1",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if("" != consultVar("FOO", "")) {`,
+//          `    makeVars["FOO_SET"] = "1";`,
+//          `}`,
+//             ]);
+// }
+
+// @("ifneq findstring") unittest {
+//     auto parseTree = Makefile(
+//         ["uname_M:=x86_64",
+//          "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
+//          "  MODEL:=64",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
+//          `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
+//          `    makeVars["MODEL"] = "64";`,
+//          `}`,
+//             ]);
+// }
+
+// @("override with if") unittest {
+//     auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
+//             ]);
+// }
+
+// @("+=") unittest {
+//     auto parseTree = Makefile(
+//         ["ifeq ($(BUILD),debug)",
+//          "  CFLAGS += -g",
+//          "endif",
+//             ].join("\n") ~ "\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`if(consultVar("BUILD", "") == "debug") {`,
+//          `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
+//          `}`,
+//             ]);
+// }
+
+// @("shell in assigment") unittest {
+//     auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
+//     writeln(parseTree);
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
+//             ]);
+// }
+
+
+// @("subst") unittest {
+//     auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
+//             ]);
+// }
+
+// @("addprefix") unittest {
+//     auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
+//             ]);
+// }
+
+// @("addsuffix") unittest {
+//     auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
+//             ]);
+// }
+
+// @("addsuffix subst") unittest {
+//     auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["FOO"] = consultVar("FOO", ["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array);`,
+//             ]);
+
+// }
+
+// @("addprefix addsuffix subst") unittest {
+//     //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
+//     auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
+//     writeln(parseTree);
+//     toReggaeLines(parseTree).shouldEqual(
+//         [`makeVars["P2LIB"] = consultVar("P2LIB", [["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array].map!(a => consultVar("ROOT", "") ~ a).array);`,
+//             ]);
+
+// }
