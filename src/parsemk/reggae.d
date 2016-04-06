@@ -572,21 +572,10 @@ version(unittest) {
 }
 
 
-// @("shell in assigment") unittest {
-//     auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
-//     writeln(parseTree);
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
-//             ]);
-// }
-
-
-// @("subst") unittest {
-//     auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
-//             ]);
-// }
+@("subst") unittest {
+    mixin TestMakeToReggae!(["P2LIB=$(subst ee,EE,feet on the street)"]);
+    makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
+}
 
 // @("addprefix") unittest {
 //     auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
