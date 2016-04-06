@@ -173,6 +173,8 @@ string translate(in ParseTree expression) {
         return expression.children.map!translate.join(` ~ `);
     case "Makefile.Function":
         return translateFunction(expression);
+    case "Makefile.Variable":
+        return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
     case "Makefile.String":
         return translateLiteralString(expression.matches.join);
     default:
@@ -625,10 +627,10 @@ version(unittest) {
     makeVarShouldBe!"FOO"("foo.c bar.c");
 }
 
-// @("addsuffix subst no user vars") unittest {
-//     mixin TestMakeToReggae!(["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
-//     makeVarShouldBe!"FOO"("fEEt on the strEEt");
-// }
+@("addsuffix subst no user vars") unittest {
+    mixin TestMakeToReggae!(["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt on the strEEt");
+}
 
 
 // // .a applied to only the last element - must split by space
