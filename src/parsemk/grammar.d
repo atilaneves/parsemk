@@ -19,7 +19,9 @@ Makefile:
     Variable           <- "$(" Name ")"
     Name               <- identifier
     Function           <- "$(" Name " " Expression ("," Expression)* ")"
-    String             <- (!"," !endOfLine !"$" !")" .)*
+    String             <- Quoted / NiceString
+    Quoted             <- "'" (!"'" .)* "'"
+    NiceString         <- (!"," !endOfLine !"$" !")" !"'" .)*
     Comment            <- Spacing "#" (!endOfLine .)*
     Include            <- "include" Spacing FileName
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
