@@ -600,16 +600,16 @@ version(unittest) {
 // }
 
 
-// @("+= var set") unittest {
-//     mixin TestMakeToReggaeUserVars!(
-//         ["BUILD": "debug"],
-//         ["CFLAGS:=-O0",
-//          "ifeq ($(BUILD),debug)",
-//          "  CFLAGS += -g",
-//          "endif",
-//             ]);
-//     makeVarShouldBe!"CFLAGS"("-O0 -g");
-// }
+@("+= var set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["CFLAGS:=-O0",
+         "ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
+            ]);
+    makeVarShouldBe!"CFLAGS"("-O0 -g");
+}
 
 
 @("subst") unittest {
