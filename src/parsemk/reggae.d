@@ -148,7 +148,7 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     auto var = statement.children[0].matches.join;
     auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
     return topLevel
-        ? [makeVar(var) ~ ` = ` ~ consultVar(var, val) ~ `;`]
+        ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
@@ -247,9 +247,10 @@ version(unittest) {
 
         auto build = _getBuild();
 
-        void makeVarShouldBe(string varName)(string value) {
+        void makeVarShouldBe(string varName)(string value,
+                                             string file = __FILE__, size_t line = __LINE__) {
             try {
-                makeVars[varName].shouldEqual(value);
+                makeVars[varName].shouldEqual(value, file, line);
             } catch(Throwable t) {
                 writeln(parseTree);
                 writeln("----------------------------------------\n",
@@ -268,7 +269,7 @@ version(unittest) {
 
 @("Top-level assignment with customization") unittest {
     mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
-    makeVarShouldBe!"QUIET"("true");
+    makeVarShouldBe!"QUIET"("foo");
 }
 
 
