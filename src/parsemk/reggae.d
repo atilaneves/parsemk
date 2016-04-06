@@ -259,6 +259,10 @@ version(unittest) {
                 throw t;
             }
         }
+
+        void makeVarShouldNotBeSet(string varName)(string file = __FILE__, size_t line = __LINE__) {
+            varName.shouldNotBeIn(makeVars);
+        }
     }
 }
 
@@ -309,18 +313,14 @@ version(unittest) {
         [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
 }
 
-// @("ifeq works correctly with literals and no else block") unittest {
-//     auto parseTree = Makefile(
-//         ["ifeq (,foo)",
-//          "OS=osx",
-//          "endif",
-//             ].join("\n") ~ "\n");
-//     toReggaeLines(parseTree).shouldEqual(
-//         [`if("" == "foo") {`,
-//          `    makeVars["OS"] = "osx";`,
-//          `}`
-//         ]);
-// }
+@("ifeq works correctly with literals and no else block") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,foo)",
+         "OS=osx",
+         "endif"
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
 // @("ifeq works correctly with no else block") unittest {
 //     auto parseTree = Makefile(
