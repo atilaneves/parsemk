@@ -27,16 +27,22 @@ string toReggaeOutput(ParseTree parseTree) {
 /**
  Automatically generated from parsing a Makefile, do not edit by hand
  */
+
 import std.algorithm;
 import std.process;
+import std.path;
+
 string[string] makeVars; // dynamic variables
+
 string consultVar(in string var, in string default_ = "") {
     return var in makeVars ? makeVars[var] : userVars.get(var, default_);
 }
+
 // implementation of GNU make $(findstring)
 string findstring(in string needle, in string haystack) {
     return haystack.canFind(needle) ? needle : "";
 }
+
 int _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
@@ -158,7 +164,10 @@ string translate(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
     case "Makefile.ErrorExpression":
-        return expression.children.map!translate.join(` ~ `);
+        auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
+                                         expression.children[0].matches.join == " ";
+        auto children = expressionBeginsWithSpace ? expression.children[1..$] : expression.children;
+        return children.map!translate.join(` ~ `);
     case "Makefile.Function":
         return translateFunction(expression);
     case "Makefile.Variable":
@@ -201,6 +210,9 @@ string translateFunction(in ParseTree function_) {
 
     case "shell":
         return `executeShell(` ~ translate(function_.children[1]) ~ `).output`;
+
+    case "basename":
+        return `stripExtension(` ~ translate(function_.children[1]) ~ `)`;
 
     default:
         throw new Exception("Unknown function " ~ name);
@@ -617,4 +629,11 @@ version(unittest) {
         ["ROOT": "leroot/", "DOTLIB": ".a"],
         ["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
     makeVarShouldBe!"P2LIB"("leroot/fEEt.a leroot/on.a leroot/the.a leroot/strEEt.a");
+}
+
+@("basename") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["DRUNTIME": "druntime.foo"],
+        ["DRUNTIMESO = $(basename $(DRUNTIME)).so.a"]);
+    makeVarShouldBe!"DRUNTIMESO"("druntime.so.a");
 }
