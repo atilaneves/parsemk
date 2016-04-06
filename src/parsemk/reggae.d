@@ -31,6 +31,7 @@ string toReggaeOutput(ParseTree parseTree) {
 import std.algorithm;
 import std.process;
 import std.path;
+import std.string;
 
 string[string] makeVars; // dynamic variables
 
