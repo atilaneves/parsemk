@@ -12,7 +12,7 @@ Makefile:
     IfNotEqual         <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     Else               <- Spacing "else" endOfLine Statement+
     EndIf              <- Spacing  "endif" endOfLine
-    SimpleStatement    <- Assignment / PlusEqual / Include / Comment / Error / Override / Empty
+    SimpleStatement    <- Override / Assignment / PlusEqual / Include / Comment / Error / Empty
     Assignment         <- Spacing Name Spacing (":=" / "=") Expression
     PlusEqual          <- Spacing Name Spacing "+=" Spacing Expression
     Expression         <- (Function? Variable? String?)+
@@ -22,10 +22,9 @@ Makefile:
     String             <- NonEmptyString / EmptyString
     NonEmptyString     <- (!"," !endOfLine !"$" !")" .)*
     EmptyString        <- ""
-
-    Comment           <- Spacing "#" (!endOfLine .)*
-    Include           <- "include" Spacing FileName
-    Override <- ""
+    Comment            <- Spacing "#" (!endOfLine .)*
+    Include            <- "include" Spacing FileName
+    Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
     FileName <- ""
     Error <- ""
 

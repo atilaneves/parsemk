@@ -201,6 +201,12 @@ string translateFunction(in ParseTree function_) {
         auto text = translate(function_.children[3]);
         return text ~ `.replace(` ~ from ~ `, ` ~ to ~ `)`;
 
+    case "if":
+        auto cond = translate(function_.children[1]);
+        auto trueBranch = translate(function_.children[2]);
+        auto elseBranch = function_.children.length > 3 ? translate(function_.children[3]) : `""`;
+        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ elseBranch;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -578,15 +584,15 @@ version(unittest) {
 //     makeVarShouldBe!"isMac"("");
 // }
 
-// @("override with if and no user vars") unittest {
-//     mixin TestMakeToReggae!(["override PIC:=$(if $(PIC),-fPIC,)"]);
-//     makeVarShouldBe!"PIC"("");
-// }
+@("override with if and no user vars") unittest {
+    mixin TestMakeToReggae!(["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("");
+}
 
-// @("override with if and user vars") unittest {
-//     mixin TestMakeToReggaeUserVars!(["PIC": "foo"], ["override PIC:=$(if $(PIC),-fPIC,)"]);
-//     makeVarShouldBe!"PIC"("-fPIC");
-// }
+@("override with if and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(["PIC": "foo"], ["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("-fPIC");
+}
 
 
 @("+= var not set") unittest {
