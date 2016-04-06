@@ -19,23 +19,7 @@ else {
 
 
 string toReggaeOutputWithImport(ParseTree parseTree) {
-    return q{
-/**
- Automatically generated from parsing a Makefile, do not edit by hand
- */
-import reggae;
-import std.algorithm;
-string[string] makeVars; // dynamic variables
-string consultVar(in string var, in string default_ = "") {
-    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
-}
-// implementation of GNU make $(findstring)
-string findstring(in string needle, in string haystack) {
-    return haystack.canFind(needle) ? needle : "";
-}
-auto _getBuild() }
-     ~ "{\n" ~
-    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
+    return "import reggae;\n" ~ toReggaeOutput(parseTree);
 }
 
 string toReggaeOutput(ParseTree parseTree) {
@@ -128,9 +112,9 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [`//` ~ statement.matches[1..$].join];
 
     case "Makefile.Error":
-        auto embedded = statement.children[0];
-        // the slice gets rid of trailing ")"
-        return [`throw new Exception(` ~ embedded.children[0 .. $-1].map!translate.join(` ~ `) ~ `);`];
+        auto msg = translate(statement.children[0]);
+        //return [`throw new Exception(` ~ msg.children.map!translate.join(` ~ `) ~ `);`];
+        return [`throw new Exception(` ~ msg ~ `);`];
 
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
@@ -173,12 +157,14 @@ private string consultVar(in string varName, in string default_) {
 string translate(in ParseTree expression) {
     switch(expression.name) {
     case "Makefile.Expression":
+    case "Makefile.ErrorExpression":
         return expression.children.map!translate.join(` ~ `);
     case "Makefile.Function":
         return translateFunction(expression);
     case "Makefile.Variable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
     case "Makefile.String":
+    case "Makefile.ErrorString":
     case "Makefile.EmptyString":
         return translateLiteralString(expression.matches.join);
     default:
@@ -551,7 +537,7 @@ version(unittest) {
              "endif",
                 ]);
         assert(0, "Should never get here");
-    } catch(Throwable t) {}
+    } catch(Exception ex) {}
 }
 
 @("error function with user vars") unittest {
@@ -561,6 +547,19 @@ version(unittest) {
          "  $(error Model is not set for $(foo))",
          "endif",
             ]);
+}
+
+@("error function as in phobos") unittest {
+    try {
+        mixin TestMakeToReggae!(
+            ["ifneq ($(BUILD),release)",
+             "    ifneq ($(BUILD),debug)",
+             "        $(error Unrecognized BUILD=$(BUILD), must be 'debug' or 'release')",
+             "    endif",
+             "endif",
+                ]);
+    assert(0, "Should never get here");
+    } catch(Exception ex) { }
 }
 
 

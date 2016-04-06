@@ -27,6 +27,8 @@ Makefile:
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
     FileName           <- FileNameChar*
     FileNameChar       <- [a-zA-Z_0-9./]
-    Error              <- Spacing "$(error " Expression ")"
+    Error              <- Spacing "$(error " ErrorExpression ")"
+    ErrorExpression    <- (Function? Variable? ErrorString?)+
+    ErrorString        <- (!endOfLine !"$" !")" .)*
     Empty              <- ""
 `));
