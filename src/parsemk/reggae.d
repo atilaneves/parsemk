@@ -14,10 +14,11 @@ import std.regex;
 version(unittest) import unit_threaded;
 else {
     enum Serial;
+    enum ShouldFail;
 }
 
 
-string toReggaeOutput(ParseTree parseTree) {
+string toReggaeOutputWithImport(ParseTree parseTree) {
     return q{
 /**
  Automatically generated from parsing a Makefile, do not edit by hand
@@ -35,6 +36,29 @@ string findstring(in string needle, in string haystack) {
 auto _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~ `}`).join("\n");
+}
+
+string toReggaeOutput(ParseTree parseTree) {
+    return q{
+/**
+ Automatically generated from parsing a Makefile, do not edit by hand
+ */
+import std.algorithm;
+import std.process;
+string[string] makeVars; // dynamic variables
+string consultVar(in string var, in string default_ = "") {
+    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
+}
+// implementation of GNU make $(findstring)
+string findstring(in string needle, in string haystack) {
+    return haystack.canFind(needle) ? needle : "";
+}
+int _getBuild() }
+     ~ "{\n" ~
+    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
+     "    return 5;\n"
+     `}`).join("\n") ~ "\n";
+
 }
 
 
@@ -108,7 +132,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
         auto val = eval(statement.children[1]);
-        return [makeVar(var) ~ ` = ` ~ consultVar(var) ~ ` ~ ` ~ val ~ `;`];
+        return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.Empty":
         return [];
@@ -126,7 +150,7 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     auto var = statement.children[0].matches.join;
     auto val = statement.children.length > 1 ? eval(statement.children[1]) : `""`;
     return topLevel
-        ? [makeVar(var) ~ ` = ` ~ consultVar(var, val) ~ `;`]
+        ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
@@ -169,7 +193,7 @@ string eval(in ParseTree expression) {
         auto cond = eval(expression.children[0]);
         auto trueBranch = eval(expression.children[1]);
         auto falseBranch = `""`;
-        return cond ~ ` ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
+        return cond ~ ` != "" ? ` ~ trueBranch ~ ` : ` ~ falseBranch;
     case "Makefile.Subst":
         auto from = expression.children[0];
         auto to = expression.children[1];
@@ -179,12 +203,12 @@ string eval(in ParseTree expression) {
     case "Makefile.AddPrefix":
         auto prefix = expression.children[0];
         auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array`;
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => ` ~ eval(prefix) ~ ` ~ a).array.join(" ")`;
 
     case "Makefile.AddSuffix":
         auto suffix = expression.children[0];
         auto names = expression.children[1..$];
-        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array`;
+        return `[` ~ names.map!eval.join(", ") ~ `].map!(a => a ~ ` ~ eval(suffix) ~ `).array.join(" ")`;
 
 
     default:
@@ -201,17 +225,65 @@ string evalLiteralString(in string str) {
     return `"` ~ repl ~ `"`;
 }
 
-@("Variable assignment with := to auto QUIET") unittest {
-    auto parseTree = Makefile("QUIET:=true\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = consultVar("QUIET", "true");`]);
+version(unittest) {
+
+    mixin template TestMakeToReggaeUserVars(string[string] _userVars, string[] lines) {
+        string[string] userVars = _userVars;
+        mixin TestMakeToReggaeNoUserVars!lines;
+    }
+
+    mixin template TestMakeToReggae(string[] lines) {
+        string[string] userVars;
+        mixin TestMakeToReggaeNoUserVars!lines;
+    }
+
+    mixin template TestMakeToReggaeNoUserVars(string[] lines) {
+
+        enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
+        enum code = toReggaeOutput(parseTree);
+        //pragma(msg, code);
+        mixin(code);
+
+        string access(string var)() {
+            return makeVars[var];
+        }
+
+        auto build = _getBuild();
+
+        void makeVarShouldBe(string varName)(string value,
+                                             string file = __FILE__, size_t line = __LINE__) {
+            try {
+                makeVars[varName].shouldEqual(value, file, line);
+            } catch(Throwable t) {
+                writeln(parseTree);
+                writeln("----------------------------------------\n",
+                        code,
+                        "----------------------------------------\n");
+                throw t;
+            }
+        }
+
+        void makeVarShouldNotBeSet(string varName)(string file = __FILE__, size_t line = __LINE__) {
+            varName.shouldNotBeIn(makeVars);
+        }
+    }
 }
 
-@("Variable assignment with := to auto FOO") unittest {
-    auto parseTree = Makefile("FOO:=bar\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", "bar");`]);
+@("Top-level assignment to QUIET with no customization") unittest {
+    mixin TestMakeToReggae!(["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("true");
 }
+
+@("Top-level assignment to FOO with no customization") unittest {
+    mixin TestMakeToReggae!(["FOO:=bar"]);
+    makeVarShouldBe!"FOO"("bar");
+}
+
+@("Top-level assignment to QUIET with customization") unittest {
+    mixin TestMakeToReggaeUserVars!(["QUIET": "foo"], ["QUIET:=true"]);
+    makeVarShouldBe!"QUIET"("foo");
+}
+
 
 @("Comments are not ignored") unittest {
     auto parseTree = Makefile(
@@ -219,19 +291,19 @@ string evalLiteralString(in string str) {
         "\n"
         "\n"
         "QUIET:=true\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`// this is a comment`,
-         `makeVars["QUIET"] = consultVar("QUIET", "true");`]);
+    "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
 }
 
 
-@("Variables can be assigned to nothing") unittest {
-    auto parseTree = Makefile("QUIET:=\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["QUIET"] = consultVar("QUIET", "");`]);
+@("Top-level assignment to nothing") unittest {
+    mixin TestMakeToReggae!(["QUIET:="]);
+    makeVarShouldBe!"QUIET"("");
 }
 
+//this file can't mixin and use the code since
+//it depends on runtime (reading the file)
+//it's only one line so easy to change when/if
+//the implementation changes
 @Serial
 @("includes are expanded in place") unittest {
     auto fileName = "/tmp/inner.mk";
@@ -241,284 +313,307 @@ string evalLiteralString(in string str) {
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["OS"] = consultVar("OS", "solaris");`]);
+        [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
 }
 
-@("ifeq works correctly with literals and no else block") unittest {
-    auto parseTree = Makefile(
+@("ifeq with literals and no else block") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,foo)",
          "OS=osx",
-         "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == "foo") {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
+         "endif"
+            ]);
+    makeVarShouldNotBeSet!"OS";
 }
 
-@("ifeq works correctly with no else block") unittest {
-    auto parseTree = Makefile(
+@("ifeq with rhs variable, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,$(OS))",
          "OS=osx",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
+            ]);
+    makeVarShouldBe!"OS"("osx");
 }
 
-@("ifeq works correctly with no else block and non-empty comparison") unittest {
-    auto parseTree = Makefile(
+@("ifeq with rhs variable, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Windows"],
+        ["ifeq (,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
+
+@("ifeq with non-empty comparison, no else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (MACOS,$(OS))",
          "OS=osx",
          "endif",
-            ].join("\n") ~ "\n");
+            ]);
+    makeVarShouldNotBeSet!"OS";
+}
 
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`
-        ]);
+@("ifeq with non-empty comparison, no else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "MACOS"],
+        ["ifeq (MACOS,$(OS))",
+         "OS=osx",
+         "endif",
+            ]);
+    makeVarShouldBe!"OS"("osx");
 }
 
 
-@("ifeq works correctly with else block") unittest {
-    auto parseTree = Makefile(
+@("ifeq works with else block and no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,$(BUILD))",
          "BUILD_WAS_SPECIFIED=0",
          "BUILD=release",
          "else",
          "BUILD_WAS_SPECIFIED=1",
          "endif",
-            ].join("\n") ~ "\n");
-
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("BUILD", "")) {`,
-         `    makeVars["BUILD_WAS_SPECIFIED"] = "0";`,
-         `    makeVars["BUILD"] = "release";`,
-         `} else {`,
-         `    makeVars["BUILD_WAS_SPECIFIED"] = "1";`,
-         `}`
-        ]);
+            ]);
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("0");
+    makeVarShouldBe!"BUILD"("release");
 }
 
-@Serial
-@("includes with ifeq are expanded in place") unittest {
-    auto fileName = "/tmp/inner.mk";
-    {
-        auto file = File(fileName, "w");
-        file.writeln("ifeq (MACOS,$(OS))");
-        file.writeln("  OS:=osx");
-        file.writeln("endif");
-    }
-    auto parseTree = Makefile("include " ~ fileName ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`]);
+@("ifeq works with else block and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["ifeq (,$(BUILD))",
+         "BUILD_WAS_SPECIFIED=0",
+         "BUILD=release",
+         "else",
+         "BUILD_WAS_SPECIFIED=1",
+         "endif",
+            ]);
+
+    makeVarShouldBe!"BUILD_WAS_SPECIFIED"("1");
+    makeVarShouldNotBeSet!"BUILD";
 }
 
-@("nested ifeq") unittest {
-    auto parseTree = Makefile(
+@("nested ifeq with no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,$(OS))",
          "  uname_S:=Linux",
          "  ifeq (Darwin,$(uname_S))",
          "    OS:=osx",
          "  endif",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["uname_S"] = "Linux";`,
-         `    if("Darwin" == consultVar("uname_S", "")) {`,
-         `        makeVars["OS"] = "osx";`,
-         `    }`,
-         `}`,
             ]);
+    makeVarShouldBe!"uname_S"("Linux");
+    makeVarShouldNotBeSet!"OS";
+}
+
+@("nested ifeq with OS user var") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=Linux",
+         "  ifeq (Darwin,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    makeVarShouldNotBeSet!"uname_S";
+    makeVarShouldNotBeSet!"OS";
 }
 
 
-@("Refer to declared variable") unittest {
-    auto parseTree = Makefile(
+@("Assignment to variabled embedded in string with no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,$(MODEL))",
          "  MODEL:=64",
          "endif",
          "MODEL_FLAG:=-m$(MODEL)",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("MODEL", "")) {`,
-         `    makeVars["MODEL"] = "64";`,
-         `}`,
-         `makeVars["MODEL_FLAG"] = consultVar("MODEL_FLAG", "-m" ~ consultVar("MODEL", ""));`,
             ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m64");
+}
+
+@("Assignment to variabled embedded in string with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "32"],
+        ["ifeq (,$(MODEL))",
+         "  MODEL:=64",
+         "endif",
+         "MODEL_FLAG:=-m$(MODEL)",
+            ]);
+    makeVarShouldBe!"MODEL_FLAG"("-m32");
 }
 
 
-@("shell commands") unittest {
-    auto parseTree = Makefile(
+@("shell function no user vars Darwin") unittest {
+    mixin TestMakeToReggae!(
         ["ifeq (,$(OS))",
          "  uname_S:=$(shell uname -s)",
          "  ifeq (Darwin,$(uname_S))",
          "    OS:=osx",
          "  endif",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    makeVars["uname_S"] = executeShell("uname -s").output;`,
-         `    if("Darwin" == consultVar("uname_S", "")) {`,
-         `        makeVars["OS"] = "osx";`,
-         `    }`,
-         `}`,
             ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldNotBeSet!"OS";
+    } else {}
 }
 
-
-@("ifeq with space and variable on the left side") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (MACOS,$(OS))",
-         "  OS:=osx",
-         "endif",
-         "ifeq (,$(MODEL))",
-         "  ifeq ($(OS), solaris)",
-         "    uname_M:=$(shell isainfo -n)",
+@("shell function no user vars Linux") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=DefinitelyLinux",
          "  endif",
          "endif",
-        ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("MACOS" == consultVar("OS", "")) {`,
-         `    makeVars["OS"] = "osx";`,
-         `}`,
-         `if("" == consultVar("MODEL", "")) {`,
-         `    if(consultVar("OS", "") == "solaris") {`,
-         `        makeVars["uname_M"] = executeShell("isainfo -n").output;`,
-         `    }`,
-         `}`,
             ]);
+    version(Linux) {
+        makeVarShouldBe!"uname_S"("Linux");
+        makeVarShouldBe!"OS"("DefinitelyLinux");
+    } else {}
 }
 
-@("error statement 1") unittest {
-    auto parseTree = Makefile(
+@("shell function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["OS": "Linux"],
+        ["ifeq (,$(OS))",
+         "  uname_S:=$(shell uname -s)",
+         "  ifeq (Linux,$(uname_S))",
+         "    OS:=osx",
+         "  endif",
+         "endif",
+            ]);
+    version(Linux) {
+        makeVarShouldNotBeSet!"uname_S";
+        makeVarShouldNotBeSet!"OS";
+    } else {}
+}
+
+@("error function with no vars") unittest {
+    try {
+        mixin TestMakeToReggae!(
+            ["ifeq (,$(MODEL))",
+             "  $(error Model is not set for $(foo))",
+             "endif",
+                ]);
+        assert(0, "Should never get here");
+    } catch(Throwable t) {}
+}
+
+@("error function with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["MODEL": "64"],
         ["ifeq (,$(MODEL))",
          "  $(error Model is not set for $(foo))",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("MODEL", "")) {`,
-         `    throw new Exception("Model is not set for " ~ consultVar("foo", ""));`,
-         `}`,
-            ]);
-}
-
-@("error statement 2") unittest {
-    auto parseTree = Makefile(
-        ["ifeq (,$(OS))",
-         "  $(error Unrecognized or unsupported OS for uname: $(uname_S))",
-         "endif",
-         ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" == consultVar("OS", "")) {`,
-         `    throw new Exception("Unrecognized or unsupported OS for uname: " ~ consultVar("uname_S", ""));`,
-         `}`,
             ]);
 }
 
 
-@("ifneq") unittest {
-    auto parseTree = Makefile(
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggae!(
         ["ifneq (,$(FOO))",
          "  FOO_SET:=1",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if("" != consultVar("FOO", "")) {`,
-         `    makeVars["FOO_SET"] = "1";`,
-         `}`,
             ]);
+    makeVarShouldNotBeSet!"FOO_SET";
 }
 
-@("ifneq findstring") unittest {
-    auto parseTree = Makefile(
-        ["uname_M:=x86_64",
-         "ifneq (,$(findstring $(uname_M),x86_64 amd64))",
-         "  MODEL:=64",
+@("ifneq no user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["FOO": "BAR"],
+        ["ifneq (,$(FOO))",
+         "  FOO_SET:=1",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["uname_M"] = consultVar("uname_M", "x86_64");`,
-         `if("" != findstring(consultVar("uname_M", ""), "x86_64 amd64")) {`,
-         `    makeVars["MODEL"] = "64";`,
-         `}`,
             ]);
+    makeVarShouldBe!"FOO_SET"("1");
 }
 
-@("override with if") unittest {
-    auto parseTree = Makefile("override PIC:=$(if $(PIC),-fPIC,)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["PIC"] = consultVar("PIC", "") ? "-fPIC" : "";`,
+@("findstring") unittest {
+    mixin TestMakeToReggae!(
+        ["uname_S:=Linux",
+         "uname_M:=x86_64",
+         "is64:=$(findstring $(uname_M),x86_64 amd64)",
+         "isMac:=$(findstring $(uname_S),Darwin MACOS AppleStuff)",
             ]);
+    makeVarShouldBe!"is64"("x86_64");
+    makeVarShouldBe!"isMac"("");
 }
 
-@("+=") unittest {
-    auto parseTree = Makefile(
+@("override with if and no user vars") unittest {
+    mixin TestMakeToReggae!(["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("");
+}
+
+@("override with if and user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(["PIC": "foo"], ["override PIC:=$(if $(PIC),-fPIC,)"]);
+    makeVarShouldBe!"PIC"("-fPIC");
+}
+
+
+@("+= var not set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
         ["ifeq ($(BUILD),debug)",
          "  CFLAGS += -g",
          "endif",
-            ].join("\n") ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`if(consultVar("BUILD", "") == "debug") {`,
-         `    makeVars["CFLAGS"] = consultVar("CFLAGS") ~ "-g";`,
-         `}`,
             ]);
+    makeVarShouldBe!"CFLAGS"("-g");
 }
 
-@("shell in assigment") unittest {
-    auto parseTree = Makefile(`PATHSEP:=$(shell echo "\\")` ~ "\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["PATHSEP"] = consultVar("PATHSEP", executeShell("echo \"\\\\\"").output);`,
+
+@("+= var set") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["BUILD": "debug"],
+        ["CFLAGS:=-O0",
+         "ifeq ($(BUILD),debug)",
+         "  CFLAGS += -g",
+         "endif",
             ]);
+    makeVarShouldBe!"CFLAGS"("-O0 -g");
 }
 
 
 @("subst") unittest {
-    auto parseTree = Makefile("P2LIB=$(subst /,_,$1)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["P2LIB"] = consultVar("P2LIB", "$1".replace("/", "_"));`,
-            ]);
+    mixin TestMakeToReggae!(["P2LIB=$(subst ee,EE,feet on the street)"]);
+    makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
 }
 
 @("addprefix") unittest {
-    auto parseTree = Makefile("FOO=$(addprefix std/,algorithm container)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["algorithm", "container"].map!(a => "std/" ~ a).array);`,
-            ]);
+    mixin TestMakeToReggae!(["FOO=$(addprefix std/,algorithm container)"]);
+    makeVarShouldBe!"FOO"("std/algorithm std/container");
 }
 
 @("addsuffix") unittest {
-    auto parseTree = Makefile("FOO=$(addsuffix .c,foo bar)\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["foo", "bar"].map!(a => a ~ ".c").array);`,
-            ]);
+    mixin TestMakeToReggae!(["FOO=$(addsuffix .c,foo bar)"]);
+    makeVarShouldBe!"FOO"("foo.c bar.c");
 }
 
-@("addsuffix subst") unittest {
-    auto parseTree = Makefile("FOO=$(addsuffix $(DOTLIB),$(subst /,_,$1))\n");
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["FOO"] = consultVar("FOO", ["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array);`,
-            ]);
-
+@("addsuffix subst no user vars") unittest {
+    mixin TestMakeToReggae!(["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt on the strEEt");
 }
 
-@("addprefix addsuffix subst") unittest {
-    //auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-    auto parseTree = Makefile("P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst /,_,$1)))\n");
-    writeln(parseTree);
-    toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["P2LIB"] = consultVar("P2LIB", [["$1".replace("/", "_")].map!(a => a ~ consultVar("DOTLIB", "")).array].map!(a => consultVar("ROOT", "") ~ a).array);`,
-            ]);
 
+// .a applied to only the last element - must split by space
+@ShouldFail
+@("addsuffix subst with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["DOTLIB": ".a"],
+        ["FOO=$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street))"]);
+    makeVarShouldBe!"FOO"("fEEt.a on.a the.a strEEt.a");
+}
+
+
+@("addprefix addsuffix subst no user vars") unittest {
+    mixin TestMakeToReggae!(["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
+    makeVarShouldBe!"P2LIB"("fEEt on the strEEt");
+}
+
+// leroot/ only applied to first element, .a only to last element
+@ShouldFail
+@("addprefix addsuffix subst with user vars") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["ROOT": "leroot/", "DOTLIB": ".a"],
+        ["P2LIB=$(addprefix $(ROOT),$(addsuffix $(DOTLIB),$(subst ee,EE,feet on the street)))"]);
+    makeVarShouldBe!"P2LIB"("leroot/fEEt.a leroot/on.a leroot/the.a leroot/strEEt.a");
 }
