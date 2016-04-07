@@ -223,12 +223,12 @@ string translateFunction(in ParseTree function_) {
     case "addsuffix":
         auto suffix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split(" ").map!(a => a ~ ` ~ suffix ~ `).array.join(" ")`;
+        return names ~ `.split(" ").map!(a => a ~ ` ~ suffix ~ `).join(" ")`;
 
     case "addprefix":
         auto prefix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split(" ").map!(a => ` ~ prefix ~ ` ~ a).array.join(" ")`;
+        return names ~ `.split(" ").map!(a => ` ~ prefix ~ ` ~ a).join(" ")`;
 
     case "subst":
         auto from = translate(function_.children[1]);
@@ -255,6 +255,12 @@ string translateFunction(in ParseTree function_) {
         auto callee = function_.children[1].matches.join;
         auto params = function_.children[2 .. $].map!translate.join(`, `);
         return callee ~ `(` ~ params ~ `)`;
+
+    case "foreach":
+        auto var = function_.children[1].matches.join;
+        auto list = translate(function_.children[2]);
+        auto text = translate(function_.children[3]).replace(`consultVar("` ~ var ~ `")`, `a`);
+        return list ~ `.split(" ").map!(a => ` ~ text ~ `).join(" ")`;
 
     default:
         throw new Exception("Unknown function " ~ name);
@@ -688,3 +694,24 @@ version(unittest) {
          "result=$(call P2LIB,$(stuff))"]);
     makeVarShouldBe!"result"("leroot/libphobos2_foo_bar_baz.lib leroot/libphobos2_toto_titi.lib");
 }
+
+@("foreach") unittest {
+    mixin TestMakeToReggae!(
+        ["LIST=foo bar baz",
+         "RESULT = $(foreach var,$(LIST),$(addsuffix .c,$(var)))",
+         "BAR=BAZ",
+            ]);
+    makeVarShouldBe!"RESULT"("foo.c bar.c baz.c");
+}
+
+
+// @("define function with foreach") unittest {
+//     mixin TestMakeToReggae!(
+//         ["PACKAGE_std = array ascii base64",
+//          "P2MODULES=$(foreach P,$1,$(addprefix $P/,$(PACKAGE_$(subst /,_,$P))))",
+//          // std/algorithm std/container std/digest
+//          "STD_PACKAGES = std $(addprefix std/,algorithm container digest)",
+//          "STD_MODULES=$(call P2MODULES,$(STD_PACKAGES))",
+//             ]);
+//     makeVarShouldBe!"STD_MODULES"("std/array std/ascii std/base64");
+// }
