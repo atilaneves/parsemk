@@ -17,7 +17,7 @@ Makefile:
     PlusEqual          <- Spacing Name Spacing "+=" Spacing Expression
     Expression         <- (Function? Variable? String?)+
     Variable           <- NormalVariable / IndexVariable
-    NormalVariable     <- "$(" Name ")"
+    NormalVariable     <- "$(" Name ")" / "$" Name
     IndexVariable      <- "$" digit
     Name               <- identifier
     Function           <- "$(" Name " " Expression ("," Expression)* ")"
