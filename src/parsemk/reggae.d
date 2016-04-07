@@ -210,7 +210,7 @@ string translate(in ParseTree expression) {
     case "Makefile.NormalVariable":
         return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
     case "Makefile.IndexVariable":
-        return `params[` ~ ((unsigil(expression.matches.join)).to!int - 1).to!string ~ `]`;
+        return `params[` ~ unsigil(expression.matches.join) ~ `]`;
     case "Makefile.ForEachVariable":
         return unsigil(expression.matches.join);
     case "Makefile.String":
@@ -258,7 +258,7 @@ string translateFunction(in ParseTree function_) {
     case "call":
         auto callee = function_.children[1].matches.join;
         auto params = function_.children[2 .. $].map!translate.join(`, `);
-        return callee ~ `(` ~ params ~ `)`;
+        return callee ~ `("` ~ callee ~ `", ` ~ params ~ `)`;
 
     case "foreach":
         auto var = function_.children[1].matches.join;
@@ -302,6 +302,7 @@ version(unittest) {
 
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
+        //pragma(msg, code);
         mixin(code);
 
         string access(string var)() {
@@ -327,7 +328,7 @@ version(unittest) {
         }
 
         void makeVarShouldNotBeSet(string varName)(string file = __FILE__, size_t line = __LINE__) {
-            varName.shouldNotBeIn(makeVars);
+            varName.shouldNotBeIn(makeVars, file, line);
         }
     }
 }
