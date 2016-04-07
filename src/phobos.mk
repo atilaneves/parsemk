@@ -227,3 +227,8 @@ C_MODULES = $(addprefix etc/c/zlib/, adler32 compress crc32 deflate	\
 	gzclose gzlib gzread gzwrite infback inffast inflate inftrees trees uncompr zutil)
 
 OBJS = $(addsuffix $(DOTOBJ),$(addprefix $(ROOT)/,$(C_MODULES)))
+
+MAKEFILE = $(firstword $(MAKEFILE_LIST))
+
+# build with shared library support (defaults to true on supported platforms)
+SHARED=$(if $(findstring $(OS),linux freebsd),1,)
