@@ -211,11 +211,13 @@ string translate(in ParseTree expression) {
         return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
     case "Makefile.IndexVariable":
         return `params[` ~ ((unsigil(expression.matches.join)).to!int - 1).to!string ~ `]`;
+    case "Makefile.ForEachVariable":
+        return unsigil(expression.matches.join);
     case "Makefile.String":
     case "Makefile.ErrorString":
         return translateLiteralString(expression.matches.join);
     default:
-        throw new Exception("Unknown expression " ~ expression.name ~ " in " ~ expression.matches.join);
+        throw new Exception("Unknown expression " ~ expression.name ~ " in '" ~ expression.matches.join ~ "'");
     }
 }
 
@@ -721,7 +723,7 @@ version(unittest) {
 @("define function with foreach") unittest {
     mixin TestMakeToReggae!(
         ["PACKAGE_std = array ascii base64",
-         "P2MODULES=$(foreach P,$1,$(addprefix $(P)/,$(PACKAGE_$(subst /,_,$(P)))))",
+         "P2MODULES=$(foreach P,$1,$(addprefix $P/,$(PACKAGE_$(subst /,_,$P))))",
          // std/algorithm std/container std/digest
          "STD_PACKAGES = std $(addprefix std/,algorithm container digest)",
          "STD_MODULES=$(call P2MODULES,$(STD_PACKAGES))",
