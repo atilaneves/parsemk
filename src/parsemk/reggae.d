@@ -16,6 +16,12 @@ version(unittest) {
     struct Build {
         this(T...)() {}
     }
+    struct Target {
+        string[] outputs;
+        string command;
+        string[] inputs;
+        string[] implicits;
+    }
 }
 else {
     enum Serial;
@@ -28,7 +34,7 @@ string toReggaeOutputWithImport(ParseTree parseTree) {
 }
 
 string toReggaeOutput(ParseTree parseTree) {
-    return q{
+    auto header = q{
 /**
  Automatically generated from parsing a Makefile, do not edit by hand
  */
@@ -56,17 +62,25 @@ string firstword(in string words) {
     return bySpace.length ? bySpace[0] : "";
 }
 
-auto _getBuild() }
-     ~ "{\n" ~
-    (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
-     "    return Build();\n"
-     `}`).join("\n") ~ "\n";
+auto _getBuild() };
 
+    auto lines = toReggaeLines(parseTree);
+     return header ~ "{\n" ~
+         lines.lines.map!(a => "    " ~ a).join("\n") ~
+         "\n    return Build(" ~ lines.firstTarget ~ ");\n" ~
+         `}`;
 }
 
 
-string[] toReggaeLines(ParseTree parseTree) {
+struct ReggaeLines {
+    string[] lines;
+    string firstTarget;
+}
+
+ReggaeLines toReggaeLines(ParseTree parseTree) {
     import std.conv;
+    import std.range;
+
     enforce(parseTree.name == "Makefile", "Unexpected parse tree grammar " ~ parseTree.name);
     enforce(parseTree.children.length == 1,
             text("Top-level node has too many children (", parseTree.children.length, ")"));
@@ -77,13 +91,34 @@ string[] toReggaeLines(ParseTree parseTree) {
 
     string[] lines;
 
-    foreach(statement; statements.children) {
+    bool isTargetBlock(in ParseTree tree) {
+        return
+            tree.name == "Makefile.Statement" &&
+            tree.children.length == 1 &&
+            tree.children[0].name == "Makefile.CompoundStatement" &&
+            tree.children[0].children.length == 1 &&
+            tree.children[0].children[0].name == "Makefile.TargetBlock";
+    }
+
+    // first, process everything that's not a Make target, since those need
+    // to be declared back to front
+    foreach(statement; statements.children.filter!(a => !isTargetBlock(a))) {
         enforce(statement.name == "Makefile.Statement",
                 text("Unexpected parse tree ", statement.name, " expected Statement"));
         lines ~= statementToReggaeLines(statement, true);
     }
 
-    return lines;
+    auto targetBlocks = statements.children.filter!(a => isTargetBlock(a)).array;
+    string firstTarget = targetBlocks.length ? targetName(targetBlocks[0]) : "";
+
+    foreach(statement; targetBlocks.retro) {
+        enforce(statement.name == "Makefile.Statement",
+                text("Unexpected parse tree ", statement.name, " expected Statement"));
+        lines ~= statementToReggaeLines(statement, true);
+    }
+
+
+    return ReggaeLines(lines, firstTarget);
 }
 
 // e.g. $(FOO) -> FOO
@@ -137,7 +172,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         auto fileNameTree = statement.children[0];
         auto fileName = fileNameTree.matches.join;
         auto input = cast(string)read(fileName);
-        return toReggaeLines(Makefile(input));
+        return toReggaeLines(Makefile(input)).lines;
 
     case "Makefile.Comment":
         // the slice gets rid of the "#" character
@@ -152,11 +187,33 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         auto val = translate(statement.children[1]);
         return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
+    case "Makefile.TargetBlock":
+        return targetBlockToReggaeLines(statement);
+
     case "Makefile.Empty":
         return [];
 
     default:
         throw new Exception("Unknown/Unimplemented parser " ~ statement.name);
+    }
+}
+
+private string[] targetBlockToReggaeLines(in ParseTree statement) {
+    auto name = targetName(statement);
+    auto outputs = `"` ~ statement.children[0].matches.join.split(" ").join(", ") ~ `"`;
+    auto inputs  = statement.children[1].matches.join.split(" ").map!(a => `Target("` ~ a ~ `")`);
+    return [`auto ` ~ name ~ ` = Target([` ~ outputs ~ `], "", [` ~ inputs.join(", ") ~ `]);`];
+}
+
+private string targetName(in ParseTree statement) {
+    switch(statement.name) {
+    case "Makefile.Statement":
+    case "Makefile.CompoundStatement":
+        return targetName(statement.children[0]);
+    case "Makefile.TargetBlock":
+        return statement.children[0].matches.join.split(" ").join("_");
+    default:
+        throw new Exception("Cannot get target name from statement of type " ~ statement.name);
     }
 }
 
@@ -375,7 +432,7 @@ version(unittest) {
         "\n"
         "\n"
         "QUIET:=true\n");
-    "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
+    "// this is a comment".shouldBeIn(toReggaeLines(parseTree).lines);
 }
 
 
@@ -391,7 +448,7 @@ version(unittest) {
         file.writeln("OS:=solaris");
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-    toReggaeLines(parseTree).shouldEqual(
+    toReggaeLines(parseTree).lines.shouldEqual(
         [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
 }
 

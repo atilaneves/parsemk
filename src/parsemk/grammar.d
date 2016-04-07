@@ -5,7 +5,7 @@ import pegged.grammar;
 mixin(pegged.grammar.grammar(`
 Makefile:
     Statements         <- Statement*
-    Statement          <- CompoundStatement / SimpleStatement endOfLine
+    Statement          <- SimpleStatement endOfLine / CompoundStatement
     CompoundStatement  <- ConditionBlock / TargetBlock
     TargetBlock        <- Inputs ":" Spacing Outputs endOfLine (CommandLine)*
     Inputs             <- ( !":" !endOfLine .)*
