@@ -206,7 +206,7 @@ string translate(in ParseTree expression) {
     case "Makefile.Function":
         return translateFunction(expression);
     case "Makefile.NormalVariable":
-        return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
+        return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
     case "Makefile.IndexVariable":
         return `params[` ~ ((unsigil(expression.matches.join)).to!int - 1).to!string ~ `]`;
     case "Makefile.String":
@@ -702,6 +702,15 @@ version(unittest) {
          "BAR=BAZ",
             ]);
     makeVarShouldBe!"RESULT"("foo.c bar.c baz.c");
+}
+
+@("variable name containing expression") unittest {
+    mixin TestMakeToReggae!(
+        ["NAME=BAR",
+         "FOOBAR=foobar",
+         "RESULT=$(FOO$(NAME))",
+            ]);
+    makeVarShouldBe!"RESULT"("foobar");
 }
 
 
