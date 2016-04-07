@@ -157,6 +157,8 @@ private string[] normalAssignmentLines(in ParseTree statement, in bool topLevel)
     // assignments elsewhere unconditionally set the variable
     auto var = statement.children[0].matches.join;
     auto val = statement.children.length > 1 ? translate(statement.children[1]) : `""`;
+    // HACK: Get rid of empty space at the beginning if any (couldn't get the grammar to get rid of it)
+    if(val.startsWith(`" `)) val = `"` ~ val[2..$];
     return topLevel
         ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
@@ -308,11 +310,12 @@ version(unittest) {
                 makeVars[varName].shouldEqual(value, file, line);
             } catch(Throwable t) {
                 import std.conv;
-                throw new Exception(t.toString ~ "\n\n" ~
+                throw new Exception("\n\n" ~
                                     text(parseTree,
                                          "\n----------------------------------------\n",
                                          code,
-                                         "----------------------------------------\n"),
+                                         "----------------------------------------\n") ~
+                                    t.toString ~ "\n\n",
                                     file, line);
             }
         }

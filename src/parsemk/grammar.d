@@ -13,7 +13,7 @@ Makefile:
     Else               <- Spacing "else" endOfLine Statement+
     EndIf              <- Spacing  "endif" endOfLine
     SimpleStatement    <- Override / Assignment / PlusEqual / Include / Comment / Error / Empty
-    Assignment         <- Spacing Name Spacing (":=" / "=") Spacing Expression?
+    Assignment         <- Spacing Name Spacing (":=" / "=") Expression?
     PlusEqual          <- Spacing Name Spacing "+=" Spacing Expression
     Expression         <- (Function? Variable? String?)+
     Variable           <- NormalVariable / IndexVariable
