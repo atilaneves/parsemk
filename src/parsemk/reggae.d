@@ -50,6 +50,12 @@ string findstring(in string needle, in string haystack) {
     return haystack.canFind(needle) ? needle : "";
 }
 
+// implementation of GNU make $(firstword)
+string firstword(in string words) {
+    auto bySpace = words.split(" ");
+    return bySpace.length ? bySpace[0] : "";
+}
+
 auto _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
@@ -274,7 +280,7 @@ string translateFunction(in ParseTree function_) {
 
     case "firstword":
         auto text = translate(function_.children[1]);
-        return text ~ `.split(" ").front`;
+        return `firstword(` ~ text ~ `)`;
 
     default:
         throw new Exception("Unknown function " ~ name);
@@ -743,7 +749,15 @@ version(unittest) {
 }
 
 
-@("first word") unittest {
+@("first word non-empty") unittest {
     mixin TestMakeToReggae!(["FOO=$(firstword foo bar baz)"]);
     makeVarShouldBe!"FOO"("foo");
+}
+
+@("first word empty") unittest {
+    mixin TestMakeToReggae!(
+        ["BAR=",
+         "FOO=$(firstword $(BAR))"
+            ]);
+    makeVarShouldBe!"FOO"("");
 }
