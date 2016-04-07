@@ -6,7 +6,11 @@ mixin(pegged.grammar.grammar(`
 Makefile:
     Statements         <- Statement*
     Statement          <- CompoundStatement / SimpleStatement endOfLine
-    CompoundStatement  <- ConditionBlock
+    CompoundStatement  <- ConditionBlock / TargetBlock
+    TargetBlock        <- Inputs ":" Spacing Outputs endOfLine (CommandLine)*
+    Inputs             <- ( !":" !endOfLine .)*
+    Outputs            <- (!endOfLine .)*
+    CommandLine        <- "\t" Expression endOfLine
     ConditionBlock     <- (IfEqual / IfNotEqual) Else? EndIf
     IfEqual            <- Spacing "ifeq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
     IfNotEqual         <- Spacing "ifneq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+

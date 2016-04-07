@@ -66,20 +66,24 @@ auto _getBuild() }
 
 
 string[] toReggaeLines(ParseTree parseTree) {
-    enforce(parseTree.name == "Makefile", "Unexpected parse tree " ~ parseTree.name);
-    enforce(parseTree.children.length == 1);
-    parseTree = parseTree.children[0];
+    import std.conv;
+    enforce(parseTree.name == "Makefile", "Unexpected parse tree grammar " ~ parseTree.name);
+    enforce(parseTree.children.length == 1,
+            text("Top-level node has too many children (", parseTree.children.length, ")"));
+    auto statements = parseTree.children[0];
 
-    enforce(parseTree.name == "Makefile.Statements", "Unexpected parse tree " ~ parseTree.name);
+    enforce(statements.name == "Makefile.Statements",
+            text("Unexpected node ", parseTree.name, " expected Statements"));
 
-    string[] statements;
+    string[] lines;
 
-    foreach(statement; parseTree.children) {
-        enforce(statement.name == "Makefile.Statement", "Unexpected parse tree " ~ statement.name);
-        statements ~= statementToReggaeLines(statement, true);
+    foreach(statement; statements.children) {
+        enforce(statement.name == "Makefile.Statement",
+                text("Unexpected parse tree ", statement.name, " expected Statement"));
+        lines ~= statementToReggaeLines(statement, true);
     }
 
-    return statements;
+    return lines;
 }
 
 // e.g. $(FOO) -> FOO
