@@ -267,6 +267,10 @@ string translateFunction(in ParseTree function_) {
             replace(`consultVar("` ~ var ~ `")`, var);
         return list ~ `.split(" ").map!(` ~ var ~ ` => ` ~ body_ ~ `).join(" ").stripRight`;
 
+    case "firstword":
+        auto text = translate(function_.children[1]);
+        return text ~ `.split(" ").front`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -730,4 +734,10 @@ version(unittest) {
             ]);
     makeVarShouldBe!("STD_PACKAGES")("std std/algorithm std/container std/digest");
     makeVarShouldBe!"STD_MODULES"("std/array std/ascii std/base64");
+}
+
+
+@("first word") unittest {
+    mixin TestMakeToReggae!(["FOO=$(firstword foo bar baz)"]);
+    makeVarShouldBe!"FOO"("foo");
 }
