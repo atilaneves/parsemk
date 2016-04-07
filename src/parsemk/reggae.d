@@ -73,7 +73,7 @@ string[] toReggaeLines(ParseTree parseTree) {
 
 // e.g. $(FOO) -> FOO
 private string unsigil(in string var) {
-    assert(var[0] == '$');
+    assert(var[0] == '$', "Variables must start with $, " ~ var ~ " does not");
     return var[1] == '(' ? var[2 .. $ - 1] : var[1 .. $];
 }
 
@@ -213,7 +213,7 @@ string translate(in ParseTree expression) {
     case "Makefile.ErrorString":
         return translateLiteralString(expression.matches.join);
     default:
-        throw new Exception("Unknown expression " ~ expression.name);
+        throw new Exception("Unknown expression " ~ expression.name ~ " in " ~ expression.matches.join);
     }
 }
 
@@ -259,8 +259,9 @@ string translateFunction(in ParseTree function_) {
     case "foreach":
         auto var = function_.children[1].matches.join;
         auto list = translate(function_.children[2]);
-        auto text = translate(function_.children[3]).replace(`consultVar("` ~ var ~ `")`, `a`);
-        return list ~ `.split(" ").map!(a => ` ~ text ~ `).join(" ")`;
+        auto body_ = translate(function_.children[3]).
+            replace(`consultVar("` ~ var ~ `")`, var);
+        return list ~ `.split(" ").map!(` ~ var ~ ` => ` ~ body_ ~ `).join(" ").stripRight`;
 
     default:
         throw new Exception("Unknown function " ~ name);
@@ -714,13 +715,14 @@ version(unittest) {
 }
 
 
-// @("define function with foreach") unittest {
-//     mixin TestMakeToReggae!(
-//         ["PACKAGE_std = array ascii base64",
-//          "P2MODULES=$(foreach P,$1,$(addprefix $P/,$(PACKAGE_$(subst /,_,$P))))",
-//          // std/algorithm std/container std/digest
-//          "STD_PACKAGES = std $(addprefix std/,algorithm container digest)",
-//          "STD_MODULES=$(call P2MODULES,$(STD_PACKAGES))",
-//             ]);
-//     makeVarShouldBe!"STD_MODULES"("std/array std/ascii std/base64");
-// }
+@("define function with foreach") unittest {
+    mixin TestMakeToReggae!(
+        ["PACKAGE_std = array ascii base64",
+         "P2MODULES=$(foreach P,$1,$(addprefix $(P)/,$(PACKAGE_$(subst /,_,$(P)))))",
+         // std/algorithm std/container std/digest
+         "STD_PACKAGES = std $(addprefix std/,algorithm container digest)",
+         "STD_MODULES=$(call P2MODULES,$(STD_PACKAGES))",
+            ]);
+    makeVarShouldBe!("STD_PACKAGES")("std std/algorithm std/container std/digest");
+    makeVarShouldBe!"STD_MODULES"("std/array std/ascii std/base64");
+}
