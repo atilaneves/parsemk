@@ -137,3 +137,93 @@ endif
 
 ################################################################################
 MAIN = $(ROOT)/emptymain.d
+
+# Given one or more packages, returns their respective libraries
+P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))
+# Given one or more packages, returns the modules they contain
+P2MODULES=$(foreach P,$1,$(addprefix $P/,$(PACKAGE_$(subst /,_,$P))))
+
+# Packages in std. Just mention the package name here. The contents of package
+# xy/zz is in variable PACKAGE_xy_zz. This allows automation in iterating
+# packages and their modules.
+STD_PACKAGES = std $(addprefix std/,\
+  algorithm container digest experimental/allocator \
+  experimental/allocator/building_blocks experimental/logger \
+  experimental/ndslice \
+  net \
+  range regex)
+
+# Modules broken down per package
+
+PACKAGE_std = array ascii base64 bigint bitmanip compiler complex concurrency \
+  concurrencybase conv cstream csv datetime demangle encoding exception file format \
+  functional getopt json math mathspecial meta mmfile numeric \
+  outbuffer parallelism path process random signals socket socketstream stdint \
+  stdio stdiobase stream string system traits typecons typetuple uni \
+  uri utf uuid variant xml zip zlib
+PACKAGE_std_algorithm = comparison iteration mutation package searching setops \
+  sorting
+PACKAGE_std_container = array binaryheap dlist package rbtree slist util
+PACKAGE_std_digest = crc digest hmac md ripemd sha
+PACKAGE_std_experimental_logger = core filelogger \
+  nulllogger multilogger package
+PACKAGE_std_experimental_allocator = \
+  common gc_allocator mallocator mmap_allocator package showcase typed
+PACKAGE_std_experimental_allocator_building_blocks = \
+  affix_allocator allocator_list bucketizer \
+  fallback_allocator free_list free_tree bitmapped_block \
+  kernighan_ritchie null_allocator package quantizer \
+  region scoped_allocator segregator stats_collector
+PACKAGE_std_experimental_ndslice = package iteration selection slice
+PACKAGE_std_net = curl isemail
+PACKAGE_std_range = interfaces package primitives
+PACKAGE_std_regex = package $(addprefix internal/,generator ir parser \
+  backtracking kickstart tests thompson)
+
+# Modules in std (including those in packages)
+STD_MODULES=$(call P2MODULES,$(STD_PACKAGES))
+
+# OS-specific D modules
+EXTRA_MODULES_LINUX := $(addprefix std/c/linux/, linux socket)
+EXTRA_MODULES_OSX := $(addprefix std/c/osx/, socket)
+EXTRA_MODULES_FREEBSD := $(addprefix std/c/freebsd/, socket)
+EXTRA_MODULES_WIN32 := $(addprefix std/c/windows/, com stat windows		\
+		winsock) $(addprefix std/windows/, charset iunknown syserror)
+
+# Other D modules that aren't under std/
+EXTRA_MODULES_COMMON := $(addprefix etc/c/,curl odbc/sql odbc/sqlext \
+  odbc/sqltypes odbc/sqlucode sqlite3 zlib) $(addprefix std/c/,fenv locale \
+  math process stdarg stddef stdio stdlib string time wcharh)
+
+EXTRA_DOCUMENTABLES := $(EXTRA_MODULES_LINUX) $(EXTRA_MODULES_WIN32) $(EXTRA_MODULES_COMMON)
+
+EXTRA_MODULES_INTERNAL := $(addprefix			\
+	std/internal/digest/, sha_SSSE3 ) $(addprefix \
+	std/internal/math/, biguintcore biguintnoasm biguintx86	\
+	gammafunction errorfunction) $(addprefix std/internal/, \
+	cstring processinit unicode_tables scopebuffer\
+	unicode_comp unicode_decomp unicode_grapheme unicode_norm) \
+	$(addprefix std/internal/test/, dummyrange) \
+	$(addprefix std/experimental/ndslice/, internal) \
+	$(addprefix std/algorithm/, internal)
+
+EXTRA_MODULES += $(EXTRA_DOCUMENTABLES) $(EXTRA_MODULES_INTERNAL)
+
+# Aggregate all D modules relevant to this build
+D_MODULES = $(STD_MODULES) $(EXTRA_MODULES)
+
+# Add the .d suffix to the module names
+D_FILES = $(addsuffix .d,$(D_MODULES))
+# Aggregate all D modules over all OSs (this is for the zip file)
+ALL_D_FILES = $(addsuffix .d, $(STD_MODULES) $(EXTRA_MODULES_COMMON) \
+  $(EXTRA_MODULES_LINUX) $(EXTRA_MODULES_OSX) $(EXTRA_MODULES_FREEBSD) \
+  $(EXTRA_MODULES_WIN32) $(EXTRA_MODULES_INTERNAL)) \
+  std/internal/windows/advapi32.d \
+  std/windows/registry.d std/c/linux/pthread.d std/c/linux/termios.d \
+  std/c/linux/tipc.d
+
+# C files to be part of the build
+C_MODULES = $(addprefix etc/c/zlib/, adler32 compress crc32 deflate	\
+	gzclose gzlib gzread gzwrite infback inffast inflate inftrees trees uncompr zutil)
+
+OBJS = $(addsuffix $(DOTOBJ),$(addprefix $(ROOT)/,$(C_MODULES)))

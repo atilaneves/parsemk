@@ -21,7 +21,7 @@ Makefile:
     IndexVariable      <- "$" digit
     ForEachVariable    <- "$" identifier
     Name               <- identifier
-    Function           <- "$(" Name " " Expression ("," Expression)* ")"
+    Function           <- "$(" Name (" " / "\t")+ Expression ("," Expression)* ")"
     String             <- Quoted / NiceString
     Quoted             <- "'" (!"'" .)* "'"
     NiceString         <- (!"," !endOfLine !"$" !")" !"'" .)*
