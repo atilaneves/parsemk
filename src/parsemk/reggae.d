@@ -202,7 +202,8 @@ private string[] targetBlockToReggaeLines(in ParseTree statement) {
     auto name = targetName(statement);
     auto outputs = `"` ~ statement.children[0].matches.join.split(" ").join(", ") ~ `"`;
     auto inputs  = statement.children[1].matches.join.split(" ").map!(a => `Target("` ~ a ~ `")`);
-    return [`auto ` ~ name ~ ` = Target([` ~ outputs ~ `], "", [` ~ inputs.join(", ") ~ `]);`];
+    auto command = statement.children[2 .. $].map!translate.join(` ~ ";" ~ `);
+    return [`auto ` ~ name ~ ` = Target([` ~ outputs ~ `], ` ~ command ~ `, [` ~ inputs.join(", ") ~ `]);`];
 }
 
 private string targetName(in ParseTree statement) {
@@ -272,6 +273,7 @@ string translate(in ParseTree expression) {
     case "Makefile.Expression":
     case "Makefile.ErrorExpression":
     case "Makefile.Variable":
+    case "Makefile.CommandLine":
 
         auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
                                          expression.children[0].matches.join == " ";
