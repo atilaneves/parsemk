@@ -11,7 +11,12 @@ import std.regex;
 
 
 
-version(unittest) import unit_threaded;
+version(unittest) {
+    import unit_threaded;
+    struct Build {
+        this(T...)() {}
+    }
+}
 else {
     enum Serial;
     enum ShouldFail;
@@ -45,10 +50,10 @@ string findstring(in string needle, in string haystack) {
     return haystack.canFind(needle) ? needle : "";
 }
 
-int _getBuild() }
+auto _getBuild() }
      ~ "{\n" ~
     (toReggaeLines(parseTree).map!(a => "    " ~ a).array ~
-     "    return 5;\n"
+     "    return Build();\n"
      `}`).join("\n") ~ "\n";
 
 }
@@ -250,7 +255,7 @@ string translateFunction(in ParseTree function_) {
         return `findstring(` ~ translate(function_.children[1]) ~ `, ` ~ translate(function_.children[2]) ~ `)`;
 
     case "shell":
-        return `executeShell(` ~ translate(function_.children[1]) ~ `).output`;
+        return `executeShell(` ~ translate(function_.children[1]) ~ `).output.chomp`;
 
     case "basename":
         return `stripExtension(` ~ translate(function_.children[1]) ~ `)`;

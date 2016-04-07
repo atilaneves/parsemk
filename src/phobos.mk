@@ -232,3 +232,14 @@ MAKEFILE = $(firstword $(MAKEFILE_LIST))
 
 # build with shared library support (defaults to true on supported platforms)
 SHARED=$(if $(findstring $(OS),linux freebsd),1,)
+
+################################################################################
+# Rules begin here
+################################################################################
+
+# Main target (builds the dll on linux, too)
+ifeq (1,$(SHARED))
+all : lib dll
+else
+all : lib
+endif
