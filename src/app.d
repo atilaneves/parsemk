@@ -16,5 +16,6 @@ void main(string[] args) {
 string sanitize(in string input) {
     return input
         .replace("\\\n", "")
+        .replace("$$", "$")
         ;
 }
