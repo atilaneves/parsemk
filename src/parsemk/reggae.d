@@ -32,6 +32,7 @@ import std.algorithm;
 import std.process;
 import std.path;
 import std.string;
+import std.array;
 
 string[string] makeVars; // dynamic variables
 
@@ -72,7 +73,16 @@ string[] toReggaeLines(ParseTree parseTree) {
 
 // e.g. $(FOO) -> FOO
 private string unsigil(in string var) {
-    return var[2 .. $ - 1];
+    assert(var[0] == '$');
+    return var[1] == '(' ? var[2 .. $ - 1] : var[1 .. $];
+}
+
+@("unsigil regular variable") unittest {
+    "$(FOO)".unsigil.shouldEqual("FOO");
+}
+
+@("unsigil index variable") unittest {
+    "$1".unsigil.shouldEqual("1");
 }
 
 
@@ -120,7 +130,6 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
 
     case "Makefile.Error":
         auto msg = translate(statement.children[0]);
-        //return [`throw new Exception(` ~ msg.children.map!translate.join(` ~ `) ~ `);`];
         return [`throw new Exception(` ~ msg ~ `);`];
 
     case "Makefile.PlusEqual":
@@ -137,7 +146,12 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
 }
 
 
-string[] assignmentLines(in ParseTree statement, in bool topLevel) {
+private string[] assignmentLines(in ParseTree statement, in bool topLevel) {
+    bool anyIndexVariables = statement.children.length > 1 && anyIndexVariableIn(statement.children[1]);
+    return anyIndexVariables ? functionAssignmentLines(statement) : normalAssignmentLines(statement, topLevel);
+}
+
+private string[] normalAssignmentLines(in ParseTree statement, in bool topLevel) {
     // assignments at top-level need to consult userVars in order for
     // the values to be overridden at the command line.
     // assignments elsewhere unconditionally set the variable
@@ -146,6 +160,22 @@ string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     return topLevel
         ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
+}
+
+// assignment to a variable that's to be used as a function
+private string[] functionAssignmentLines(in ParseTree statement) {
+    auto func = statement.children[0].matches.join;
+    auto val = statement.children.length > 1 ? translate(statement.children[1]) : `""`;
+    return [`string ` ~ func ~ `(string[] params ...) {`,
+            `    return ` ~ val ~ `;`,
+            `}`,
+        ];
+}
+
+private bool anyIndexVariableIn(in ParseTree expression) {
+    if(expression.name == "Makefile.IndexVariable") return true;
+    if(expression.children.empty) return false;
+    return reduce!((a, b) => a || anyIndexVariableIn(b))(false, expression.children);
 }
 
 private string makeVar(in string varName) {
@@ -162,17 +192,23 @@ private string consultVar(in string varName, in string default_) {
 
 
 string translate(in ParseTree expression) {
+    import std.conv;
+
     switch(expression.name) {
     case "Makefile.Expression":
     case "Makefile.ErrorExpression":
+    case "Makefile.Variable":
+
         auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
                                          expression.children[0].matches.join == " ";
         auto children = expressionBeginsWithSpace ? expression.children[1..$] : expression.children;
         return children.map!translate.join(` ~ `);
     case "Makefile.Function":
         return translateFunction(expression);
-    case "Makefile.Variable":
+    case "Makefile.NormalVariable":
         return `consultVar("` ~ unsigil(expression.matches.join) ~ `")`;
+    case "Makefile.IndexVariable":
+        return `params[` ~ ((unsigil(expression.matches.join)).to!int - 1).to!string ~ `]`;
     case "Makefile.String":
     case "Makefile.ErrorString":
         return translateLiteralString(expression.matches.join);
@@ -215,6 +251,11 @@ string translateFunction(in ParseTree function_) {
     case "basename":
         return `stripExtension(` ~ translate(function_.children[1]) ~ `)`;
 
+    case "call":
+        auto callee = function_.children[1].matches.join;
+        auto params = function_.children[2 .. $].map!translate.join(`, `);
+        return callee ~ `(` ~ params ~ `)`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -246,7 +287,6 @@ version(unittest) {
 
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
-        //pragma(msg, code);
         mixin(code);
 
         string access(string var)() {
@@ -260,11 +300,13 @@ version(unittest) {
             try {
                 makeVars[varName].shouldEqual(value, file, line);
             } catch(Throwable t) {
-                writeln(parseTree);
-                writeln("----------------------------------------\n",
-                        code,
-                        "----------------------------------------\n");
-                throw t;
+                import std.conv;
+                throw new Exception(t.toString ~ "\n\n" ~
+                                    text(parseTree,
+                                         "\n----------------------------------------\n",
+                                         code,
+                                         "----------------------------------------\n"),
+                                    file, line);
             }
         }
 
@@ -637,4 +679,12 @@ version(unittest) {
         ["DRUNTIME": "druntime.foo"],
         ["DRUNTIMESO = $(basename $(DRUNTIME)).so.a"]);
     makeVarShouldBe!"DRUNTIMESO"("druntime.so.a");
+}
+
+@("define function") unittest {
+    mixin TestMakeToReggaeUserVars!(
+        ["ROOT": "leroot", "DOTLIB": ".lib", "stuff": "foo/bar/baz toto/titi"],
+        ["P2LIB=$(addprefix $(ROOT)/libphobos2_,$(addsuffix $(DOTLIB),$(subst /,_,$1)))",
+         "result=$(call P2LIB,$(stuff))"]);
+    makeVarShouldBe!"result"("leroot/libphobos2_foo_bar_baz.lib leroot/libphobos2_toto_titi.lib");
 }
