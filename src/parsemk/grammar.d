@@ -8,9 +8,8 @@ Makefile:
     Statement          <- SimpleStatement endOfLine / CompoundStatement
     CompoundStatement  <- ConditionBlock / TargetBlock
     TargetBlock        <- Outputs ":" " "* Inputs endOfLine (CommandLine)*
-    Outputs            <- ( !":" !endOfLine .)*
-    #Inputs             <- (!endOfLine .)*
-    Inputs             <- Expression*
+    Outputs            <- (!":" !endOfLine .)*
+    Inputs             <- Expression
     CommandLine        <- "\t" "@"? Expression endOfLine
     ConditionBlock     <- (IfEqual / IfNotEqual) Else? EndIf
     IfEqual            <- Spacing "ifeq" Spacing "(" Expression "," Spacing Expression ")" endOfLine Statement+
