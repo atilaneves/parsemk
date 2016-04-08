@@ -58,18 +58,12 @@ auto _getBuild() };
 
     auto lines = toReggaeLines(parseTree);
      return header ~ "{\n" ~
-         lines.lines.map!(a => "    " ~ a).join("\n") ~
-         "\n    return Build(" ~ lines.firstTarget ~ ");\n" ~
+         lines.map!(a => "    " ~ a).join("\n") ~ "\n" ~
          `}`;
 }
 
 
-struct ReggaeLines {
-    string[] lines;
-    string firstTarget;
-}
-
-ReggaeLines toReggaeLines(ParseTree parseTree) {
+string[] toReggaeLines(ParseTree parseTree) {
     import std.conv;
     import std.range;
 
@@ -81,8 +75,6 @@ ReggaeLines toReggaeLines(ParseTree parseTree) {
     enforce(statements.name == "Makefile.Statements",
             text("Unexpected node ", parseTree.name, " expected Statements"));
 
-    string[] lines;
-
     bool isTargetBlock(in ParseTree tree) {
         return
             tree.name == "Makefile.Statement" &&
@@ -91,6 +83,9 @@ ReggaeLines toReggaeLines(ParseTree parseTree) {
             tree.children[0].children.length == 1 &&
             tree.children[0].children[0].name == "Makefile.TargetBlock";
     }
+
+
+    string[] lines;
 
     // first, process everything that's not a Make target, since those need
     // to be declared back to front
@@ -103,14 +98,21 @@ ReggaeLines toReggaeLines(ParseTree parseTree) {
     auto targetBlocks = statements.children.filter!(a => isTargetBlock(a)).array;
     string firstTarget = targetBlocks.length ? targetName(targetBlocks[0]) : "";
 
-    foreach(statement; targetBlocks.retro) {
-        enforce(statement.name == "Makefile.Statement",
-                text("Unexpected parse tree ", statement.name, " expected Statement"));
-        lines ~= statementToReggaeLines(statement, true);
+    if(targetBlocks.empty) {
+        return lines ~ `return Build();`;
     }
 
+    // deal with all target blocks but the first
+    foreach(statement; targetBlocks[1..$].retro) {
+        enforce(statement.name == "Makefile.Statement",
+                text("Unexpected parse tree ", statement.name, " expected Statement"));
+        lines ~= statementToReggaeLines(statement, false);
+    }
 
-    return ReggaeLines(lines, firstTarget);
+    // handle the first target block
+    lines ~= statementToReggaeLines(targetBlocks[0], true);
+
+    return lines;
 }
 
 // e.g. $(FOO) -> FOO
@@ -164,7 +166,8 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         auto fileNameTree = statement.children[0];
         auto fileName = fileNameTree.matches.join;
         auto input = cast(string)read(fileName);
-        return toReggaeLines(Makefile(input)).lines;
+        // get rid of the `return Build()` line with $ - 1
+        return toReggaeLines(Makefile(input))[0 .. $ - 1];
 
     case "Makefile.Comment":
         // the slice gets rid of the "#" character
@@ -180,7 +183,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.TargetBlock":
-        return targetBlockToReggaeLines(statement);
+        return targetBlockToReggaeLines(statement, topLevel);
 
     case "Makefile.Empty":
         return [];
@@ -190,12 +193,29 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     }
 }
 
-private string[] targetBlockToReggaeLines(in ParseTree statement) {
+private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget = false) {
     auto name = targetName(statement);
-    auto outputs = `"` ~ statement.children[0].matches.join.split(" ").join(", ") ~ `"`;
-    auto inputs  = statement.children[1].matches.join.split(" ").map!(a => `Target("` ~ a ~ `")`);
-    auto command = statement.children[2 .. $].map!translate.join(` ~ ";" ~ `);
-    return [`auto ` ~ name ~ ` = Target([` ~ outputs ~ `], ` ~ command ~ `, [` ~ inputs.join(", ") ~ `]);`];
+    auto outputs = statement.children[0].matches.join.split(" ");
+    auto inputs  = statement.children[1].matches.join.split(" ");
+
+    string translateCommand() {
+        auto startIndex = statement.children.length > 2 ? 2 : 1;
+        auto command = statement.children[startIndex .. $].map!translate.join(` ~ ";" ~ `);
+        return command == "" ? `""` : command;
+    }
+
+    auto command = translateCommand;
+    if(firstTarget && command == `""`) {
+        enforce(statement.children[1].name == "Makefile.Inputs");
+        //this is the case where the first target simply tells make which other
+        //targets to build
+        return [`return Build(` ~  inputs.join(", ") ~ `);`];
+    }
+
+    return [`auto ` ~ name ~
+            ` = Target([` ~ translateLiteralString(outputs.join(", ")) ~ `], ` ~
+            command ~
+            `, [` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]);`];
 }
 
 private string targetName(in ParseTree statement) {
@@ -266,6 +286,8 @@ string translate(in ParseTree expression) {
     case "Makefile.ErrorExpression":
     case "Makefile.Variable":
     case "Makefile.CommandLine":
+    case "Makefile.Inputs":
+        if(expression.children.empty) return "";
 
         auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
                                          expression.children[0].matches.join == " ";
@@ -375,7 +397,7 @@ version(unittest) {
             return makeVars[var];
         }
 
-        auto build = _getBuild();
+        auto _build = _getBuild();
 
         void makeVarShouldBe(string varName)(string value,
                                              string file = __FILE__, size_t line = __LINE__) {
@@ -394,7 +416,27 @@ version(unittest) {
         }
 
         void makeVarShouldNotBeSet(string varName)(string file = __FILE__, size_t line = __LINE__) {
-            varName.shouldNotBeIn(makeVars, file, line);
+            attempt(varName.shouldNotBeIn(makeVars), file, line);
+        }
+
+        void buildShouldBe(Build expected, string file = __FILE__, size_t line = __LINE__) {
+            attempt(_build.shouldEqual(expected), file, line);
+        }
+
+        void attempt(E)(lazy E expr, string file = __FILE__, size_t line = __LINE__) {
+            try {
+                expr();
+            } catch(Throwable t) {
+                import std.conv;
+                throw new Exception("\n\n" ~
+                                    text(parseTree,
+                                         "\n----------------------------------------\n",
+                                         code,
+                                         "----------------------------------------\n") ~
+                                    t.toString ~ "\n\n",
+                                    file, line);
+            }
+
         }
     }
 }
@@ -426,7 +468,7 @@ version(unittest) {
         "\n"
         "\n"
         "QUIET:=true\n");
-    "// this is a comment".shouldBeIn(toReggaeLines(parseTree).lines);
+    "// this is a comment".shouldBeIn(toReggaeLines(parseTree));
 }
 
 
@@ -442,8 +484,9 @@ version(unittest) {
         file.writeln("OS:=solaris");
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
-    toReggaeLines(parseTree).lines.shouldEqual(
-        [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`]);
+    toReggaeLines(parseTree).shouldEqual(
+        [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`,
+         `return Build();`]);
 }
 
 @("ifeq with literals and no else block") unittest {
@@ -804,15 +847,28 @@ version(unittest) {
 }
 
 
-@("first word non-empty") unittest {
+@("firstword non-empty") unittest {
     mixin TestMakeToReggae!(["FOO=$(firstword foo bar baz)"]);
     makeVarShouldBe!"FOO"("foo");
 }
 
-@("first word empty") unittest {
+@("firstword empty") unittest {
     mixin TestMakeToReggae!(
         ["BAR=",
          "FOO=$(firstword $(BAR))"
             ]);
     makeVarShouldBe!"FOO"("");
+}
+
+
+@("first target with no command is considered the Build object") unittest {
+    mixin TestMakeToReggae!(
+        ["all: foo bar",
+         "foo:",
+         "\t@echo Foo!",
+         "bar:",
+         "\t@echo Bar!",
+        ]);
+    writelnUt(code);
+    buildShouldBe(Build(Target("foo", "echo Foo!", []), Target("bar", "echo Bar!", [])));
 }
