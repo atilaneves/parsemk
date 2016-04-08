@@ -253,11 +253,5 @@ endif
 lib: $(LIB)
 dll: $(ROOT)/libphobos2.so
 
-# LLIB: $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
-# 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
-
-OBJS=foo.o bar.o
-DMD=dmd
-
 $(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
