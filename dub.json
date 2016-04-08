@@ -15,7 +15,7 @@
             "mainSourceFile": "bin/ut.d",
             "excludedSourceFiles": ["src/app.d", "src/grammar.d"],
             "dependencies": {
-                "unit-threaded": "~>0.6.0"
+                "unit-threaded": "~>0.6.6"
             }
         }
     ]
