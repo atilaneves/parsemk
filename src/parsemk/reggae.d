@@ -133,7 +133,7 @@ private string[] targetsToReggaeLines(in ParseTree[] targetBlocks) {
 
 // e.g. $(FOO) -> FOO
 private string unsigil(in string var) {
-    assert(var[0] == '$', "Variables must start with $, " ~ var ~ " does not");
+    if(var[0] != '$') return var;
     return var[1] == '(' ? var[2 .. $ - 1] : var[1 .. $];
 }
 
@@ -256,12 +256,17 @@ private string targetName(in ParseTree statement) {
         return targetName(statement.children[$ - 1]);
 
     case "Makefile.TargetBlock":
-        return statement.children[0].matches.join.stripRight.split(" ").join("_");
+        return unsigil(statement.children[0].matches.join.stripRight.split(" ").join("_"));
     default:
         throw new Exception("Cannot get target name from statement of type " ~ statement.name);
     }
 }
 
+@("targetName with sigil") unittest {
+    auto name = targetName(ParseTree("Makefile.TargetBlock", true, [], "", 0, 0,
+                                     [ParseTree("Makefile.Inputs", true, ["$(LIB)"])]));
+    name.shouldEqual("LIB");
+}
 
 private string[] assignmentLines(in ParseTree statement, in bool topLevel) {
     bool anyIndexVariables = statement.children.length > 1 && anyIndexVariableIn(statement.children[1]);
@@ -936,3 +941,15 @@ version(unittest) {
             ]);
     buildShouldBe(Build(Target("foo", "gcc -o $out foo.c", [Target("foo.c")])));
 }
+
+
+// @("Inputs should be able to use variables") unittest {
+//     mixin TestMakeToReggae!(
+//         ["SRCS=foo.c",
+//          "foo: $(SRCS)",
+//          "\tgcc -o $@ $(SRCS)",
+//             ]);
+//     // both the command and the outputs should resolve $(SRCS) to "foo.c"
+//     buildShouldBe(Build(Target("foo", "gcc -o $out foo.c", [Target("foo.c")])));
+
+// }

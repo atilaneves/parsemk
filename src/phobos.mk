@@ -260,7 +260,5 @@ OBJS=foo.o bar.o
 DMD=dmd
 
 # inputs not being expanded (OBJS, etc)
-# $@ not being translated to $out
-# target name not being unsigiled
 $(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 	$(DMD) $(DFLAGS) -lib -ofout $(DRUNTIME) $(D_FILES) $(OBJS)
