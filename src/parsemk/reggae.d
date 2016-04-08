@@ -54,7 +54,7 @@ string firstword(in string words) {
     return bySpace.length ? bySpace[0] : "";
 }
 
-auto _getBuild() };
+Build _getBuild() };
 
     auto lines = toReggaeLines(parseTree);
      return header ~ "{\n" ~
@@ -110,7 +110,7 @@ string[] toReggaeLines(ParseTree parseTree) {
     }
 
     // handle the first target block
-    lines ~= statementToReggaeLines(targetBlocks[0], true);
+    lines ~= statementToReggaeLines(targetBlocks[0], true, targetBlocks[1..$]);
 
     return lines;
 }
@@ -130,12 +130,12 @@ private string unsigil(in string var) {
 }
 
 
-string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
+string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in ParseTree[] others = []) {
     switch(statement.name) {
     case "Makefile.Statement":
     case "Makefile.SimpleStatement":
     case "Makefile.CompoundStatement":
-        return statementToReggaeLines(statement.children[0], topLevel);
+        return statementToReggaeLines(statement.children[0], topLevel, others);
 
     case "Makefile.ConditionBlock":
         auto ifBlock = statement.children[0];
@@ -183,7 +183,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
         return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.TargetBlock":
-        return targetBlockToReggaeLines(statement, topLevel);
+        return targetBlockToReggaeLines(statement, topLevel, others);
 
     case "Makefile.Empty":
         return [];
@@ -193,30 +193,42 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true) {
     }
 }
 
-private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget = false) {
-    auto name = targetName(statement);
-    auto outputs = statement.children[0].matches.join.split(" ");
-    auto inputs  = statement.children[1].matches.join.split(" ");
-
+private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget, in ParseTree[] others) {
     string translateCommand() {
         auto startIndex = statement.children.length > 2 ? 2 : 1;
         auto command = statement.children[startIndex .. $].map!translate.join(` ~ ";" ~ `);
         return command == "" ? `""` : command;
     }
 
+    auto name = targetName(statement);
     auto command = translateCommand;
+    auto inputs  = statement.children[1].matches.join.split(" ");
+
     if(firstTarget && command == `""`) {
+        // no command means the first target is an aggregator
+        // this is the case where the first target simply tells make which other
+        // targets to build
         enforce(statement.children[1].name == "Makefile.Inputs");
-        //this is the case where the first target simply tells make which other
-        //targets to build
         return [`return Build(` ~  inputs.join(", ") ~ `);`];
     }
 
-    return [`auto ` ~ name ~
-            ` = Target([` ~ translateLiteralString(outputs.join(", ")) ~ `], ` ~
-            command ~
-            `, [` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]);`];
+    auto outputs = statement.children[0].matches.join.split(" ");
+    auto outputsStr = `[` ~ translateLiteralString(outputs.join(", ")) ~ `]`;
+    auto inputsStr = `[` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]`;
+    auto params = [outputsStr, command, inputsStr];
+    auto targetLine = `auto ` ~ name ~ ` = Target(` ~ params.join(", ") ~ `);`;
+    auto lines = [targetLine];
+
+    if(firstTarget) {
+        import std.range;
+        auto targetsStr = chain([targetName(statement)],
+                                others.map!(a => `optional(` ~ targetName(a) ~ `)`));
+        lines ~= `return Build(` ~ targetsStr.join(", ") ~ `);`;
+    }
+
+    return lines;
 }
+
 
 private string targetName(in ParseTree statement) {
     switch(statement.name) {
@@ -869,6 +881,16 @@ version(unittest) {
          "bar:",
          "\t@echo Bar!",
         ]);
-    writelnUt(code);
     buildShouldBe(Build(Target("foo", "echo Foo!", []), Target("bar", "echo Bar!", [])));
+}
+
+@("first target with command is the only one built by default") unittest {
+    mixin TestMakeToReggae!(
+        ["foo:",
+         "\t@echo Foo!",
+         "bar:",
+         "\t@echo Bar!",
+            ]);
+    buildShouldBe(Build(Target("foo", "echo Foo!", []),
+                        optional(Target("bar", "echo Bar!", []))));
 }
