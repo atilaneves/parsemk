@@ -234,11 +234,18 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
         return [`return Build(` ~  inputs.join(", ") ~ `);`];
     }
 
-    auto inputs  = statement.children.length > 2 ? statement.children[1].children.map!translate.join : `""`;
-    auto inputsStr = inputs ~ `.stripRight.split(" ").map!(a => Target(a)).array`;
+    auto fromInputs = statement.children.find!(a => a.name == "Makefile.Inputs");
+    auto inputsStr = fromInputs.empty
+        ? `[]`
+        : `(` ~ fromInputs.front.translate ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
+
     auto name = targetName(statement);
-    auto outputs = statement.children[0].matches.join.stripRight.split(" ");
-    auto outputsStr = `[` ~ translateLiteralString(outputs.join(", ")) ~ `]`;
+
+    auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
+    auto outputsStr = fromOutputs.empty
+        ? `""`
+        : `(` ~ fromOutputs.front.translate ~ `).stripRight.split(" ").array`;
+
     auto params = [outputsStr, command, inputsStr];
     auto targetLine = name ~ ` = Target(` ~ params.join(", ") ~ `);`;
     return [targetLine];
@@ -325,6 +332,7 @@ string translate(in ParseTree expression) {
     case "Makefile.Variable":
     case "Makefile.CommandLine":
     case "Makefile.Inputs":
+    case "Makefile.Outputs":
         if(expression.children.empty) return "";
 
         auto expressionBeginsWithSpace = expression.children[0].name == "Makefile.String" &&
@@ -955,4 +963,15 @@ version(unittest) {
                                "dmd -of$out foo.d bar.d",
                                [Target("foo.d"), Target("bar.d")])));
 
+}
+
+@("Outputs should be able to use variables") unittest {
+    mixin TestMakeToReggae!(
+        ["BIN=foo",
+         "$(BIN): foo.d bar.d",
+         "\tdmd -of$@ foo.d bar.d",
+            ]);
+    buildShouldBe(Build(Target("foo",
+                               "dmd -of$out foo.d bar.d",
+                               [Target("foo.d"), Target("bar.d")])));
 }

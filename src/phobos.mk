@@ -259,6 +259,5 @@ dll: $(ROOT)/libphobos2.so
 OBJS=foo.o bar.o
 DMD=dmd
 
-# inputs not being expanded (OBJS, etc)
 $(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
-	$(DMD) $(DFLAGS) -lib -ofout $(DRUNTIME) $(D_FILES) $(OBJS)
+	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)

@@ -8,7 +8,8 @@ Makefile:
     Statement          <- SimpleStatement endOfLine / CompoundStatement
     CompoundStatement  <- ConditionBlock / TargetBlock
     TargetBlock        <- Outputs ":" " "* Inputs endOfLine (CommandLine)*
-    Outputs            <- (!":" !endOfLine .)*
+    #Outputs            <- (!":" !endOfLine .)*
+    Outputs            <- Expression
     Inputs             <- Expression
     CommandLine        <- "\t" "@"? Expression endOfLine
     ConditionBlock     <- (IfEqual / IfNotEqual) Else? EndIf
@@ -28,7 +29,7 @@ Makefile:
     Function           <- "$(" Name (" " / "\t")+ Expression ("," Expression)* ")"
     String             <- Quoted / NiceString
     Quoted             <- "'" (!"'" .)* "'"
-    NiceString         <- (!"," !endOfLine !"$" !")" !"'" .)*
+    NiceString         <- (!"," !endOfLine !"$" !")" !"'" !":" .)*
     Comment            <- Spacing "#" (!endOfLine .)*
     Include            <- "include" Spacing FileName
     Override           <- Spacing "override " Spacing Name ("=" / ":=") Spacing Expression
