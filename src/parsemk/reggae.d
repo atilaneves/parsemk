@@ -2,6 +2,7 @@ module parsemk.reggae;
 
 import parsemk.grammar;
 import pegged.grammar;
+import reggae.build;
 import std.array;
 import std.exception;
 import std.stdio;
@@ -13,15 +14,6 @@ import std.regex;
 
 version(unittest) {
     import unit_threaded;
-    struct Build {
-        this(T...)() {}
-    }
-    struct Target {
-        string[] outputs;
-        string command;
-        string[] inputs;
-        string[] implicits;
-    }
 }
 else {
     enum Serial;
