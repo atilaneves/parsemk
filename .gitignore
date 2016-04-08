@@ -8,3 +8,4 @@ bin
 reggaefile.d
 build
 .reggae
+compile_commands.json
