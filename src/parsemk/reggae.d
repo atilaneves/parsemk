@@ -102,6 +102,8 @@ string[] toReggaeLines(ParseTree parseTree) {
         return lines ~ `return Build();`;
     }
 
+    lines ~= declareTargets(targetBlocks);
+
     // deal with all target blocks but the first
     foreach(statement; targetBlocks[1..$].retro) {
         enforce(statement.name == "Makefile.Statement",
@@ -193,6 +195,11 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
     }
 }
 
+// since D needs to declare variables before they're assigned...
+private string[] declareTargets(in ParseTree[] targetBlocks) {
+    return targetBlocks.map!(a => `Target ` ~ targetName(a) ~ `;`).array;
+}
+
 private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget, in ParseTree[] others) {
     string translateCommand() {
         auto startIndex = statement.children.length > 2 ? 2 : 1;
@@ -216,7 +223,7 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
     auto outputsStr = `[` ~ translateLiteralString(outputs.join(", ")) ~ `]`;
     auto inputsStr = `[` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]`;
     auto params = [outputsStr, command, inputsStr];
-    auto targetLine = `auto ` ~ name ~ ` = Target(` ~ params.join(", ") ~ `);`;
+    auto targetLine = name ~ ` = Target(` ~ params.join(", ") ~ `);`;
     auto lines = [targetLine];
 
     if(firstTarget) {
