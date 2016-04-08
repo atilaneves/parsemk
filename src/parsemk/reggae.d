@@ -218,8 +218,8 @@ private string[] declareTargets(in ParseTree[] targetBlocks) {
 private string translateCommand(in ParseTree statement) {
     if(statement.name != "Makefile.TargetBlock") return `""`;
 
-    auto startIndex = statement.children.length > 2 ? 2 : 1;
-    auto command = statement.children[startIndex .. $].map!translate.join(` ~ ";" ~ `);
+    auto fromFirstCommand = statement.children.find!(a => a.name == "Makefile.CommandLine");
+    auto command = fromFirstCommand.map!translate.join(` ~ ";" ~ `);
     return command == "" ? `""` : command;
 }
 
@@ -228,16 +228,17 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
     import std.range;
 
     auto command = translateCommand(statement);
-    auto inputs  = statement.children[1].matches.join.split(" ");
 
     if(firstTarget && command == `""`) {
+        auto inputs  = statement.children[1].matches.join.split(" ");
         return [`return Build(` ~  inputs.join(", ") ~ `);`];
     }
 
+    auto inputs  = statement.children.length > 2 ? statement.children[1].children.map!translate.join : `""`;
+    auto inputsStr = inputs ~ `.stripRight.split(" ").map!(a => Target(a)).array`;
     auto name = targetName(statement);
     auto outputs = statement.children[0].matches.join.stripRight.split(" ");
     auto outputsStr = `[` ~ translateLiteralString(outputs.join(", ")) ~ `]`;
-    auto inputsStr = `[` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]`;
     auto params = [outputsStr, command, inputsStr];
     auto targetLine = name ~ ` = Target(` ~ params.join(", ") ~ `);`;
     return [targetLine];
@@ -943,13 +944,15 @@ version(unittest) {
 }
 
 
-// @("Inputs should be able to use variables") unittest {
-//     mixin TestMakeToReggae!(
-//         ["SRCS=foo.c",
-//          "foo: $(SRCS)",
-//          "\tgcc -o $@ $(SRCS)",
-//             ]);
-//     // both the command and the outputs should resolve $(SRCS) to "foo.c"
-//     buildShouldBe(Build(Target("foo", "gcc -o $out foo.c", [Target("foo.c")])));
+@("Inputs should be able to use variables") unittest {
+    mixin TestMakeToReggae!(
+        ["SRCS=foo.d bar.d",
+         "foo: $(SRCS)",
+         "\tdmd -of$@ $(SRCS)",
+            ]);
+    // both the command and the outputs should resolve $(SRCS) to "foo.c"
+    buildShouldBe(Build(Target("foo",
+                               "dmd -of$out foo.d bar.d",
+                               [Target("foo.d"), Target("bar.d")])));
 
-// }
+}
