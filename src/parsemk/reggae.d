@@ -67,6 +67,7 @@ string[] toReggaeLines(ParseTree parseTree) {
     import std.conv;
     import std.range;
 
+
     enforce(parseTree.name == "Makefile", "Unexpected parse tree grammar " ~ parseTree.name);
     enforce(parseTree.children.length == 1,
             text("Top-level node has too many children (", parseTree.children.length, ")"));
@@ -76,14 +77,9 @@ string[] toReggaeLines(ParseTree parseTree) {
             text("Unexpected node ", parseTree.name, " expected Statements"));
 
     bool isTargetBlock(in ParseTree tree) {
-        return
-            tree.name == "Makefile.Statement" &&
-            tree.children.length == 1 &&
-            tree.children[0].name == "Makefile.CompoundStatement" &&
-            tree.children[0].children.length == 1 &&
-            tree.children[0].children[0].name == "Makefile.TargetBlock";
+        if(tree.name == "Makefile.TargetBlock") return true;
+        return reduce!((a, b) => a || isTargetBlock(b))(false, tree.children);
     }
-
 
     string[] lines;
 
@@ -95,27 +91,45 @@ string[] toReggaeLines(ParseTree parseTree) {
         lines ~= statementToReggaeLines(statement, true);
     }
 
-    auto targetBlocks = statements.children.filter!(a => isTargetBlock(a)).array;
-    string firstTarget = targetBlocks.length ? targetName(targetBlocks[0]) : "";
+    auto targetBlocks = statements.children.retro.filter!(a => isTargetBlock(a)).array;
 
-    if(targetBlocks.empty) {
-        return lines ~ `return Build();`;
-    }
-
-    lines ~= declareTargets(targetBlocks);
-
-    // deal with all target blocks but the first
-    foreach(statement; targetBlocks[1..$].retro) {
-        enforce(statement.name == "Makefile.Statement",
-                text("Unexpected parse tree ", statement.name, " expected Statement"));
-        lines ~= statementToReggaeLines(statement, false);
-    }
-
-    // handle the first target block
-    lines ~= statementToReggaeLines(targetBlocks[0], true, targetBlocks[1..$]);
+    lines ~= targetsToReggaeLines(targetBlocks);
 
     return lines;
 }
+
+private string[] targetsToReggaeLines(in ParseTree[] targetBlocks) {
+    import std.range;
+    import std.conv;
+
+    if(targetBlocks.empty) {
+        return [`return Build();`];
+    }
+
+    string[] lines;
+
+    lines ~= declareTargets(targetBlocks);
+
+    auto defaultTarget = targetBlocks[$ - 1];
+    auto otherTargets = targetBlocks[0 .. $ - 1];
+
+    foreach(statement; otherTargets) {
+        enforce(statement.name == "Makefile.Statement",
+                text("Unexpected parse tree ", statement.name, " expected Statement"));
+        lines ~= statementToReggaeLines(statement, true, otherTargets, false);
+    }
+
+    lines ~= statementToReggaeLines(defaultTarget, true, otherTargets, true);
+
+    if(!lines.canFind!(a => a.canFind("return Build"))) {
+        auto targetsStr = chain([targetName(defaultTarget)],
+                                otherTargets.map!(a => `optional(` ~ targetName(a) ~ `)`));
+        lines ~= [`return Build(` ~ targetsStr.join(", ") ~ `);`];
+    }
+
+    return lines;
+}
+
 
 // e.g. $(FOO) -> FOO
 private string unsigil(in string var) {
@@ -132,12 +146,12 @@ private string unsigil(in string var) {
 }
 
 
-string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in ParseTree[] others = []) {
+string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in ParseTree[] others = [], bool firstTarget = false) {
     switch(statement.name) {
     case "Makefile.Statement":
     case "Makefile.SimpleStatement":
     case "Makefile.CompoundStatement":
-        return statementToReggaeLines(statement.children[0], topLevel, others);
+        return statementToReggaeLines(statement.children[0], topLevel, others, firstTarget);
 
     case "Makefile.ConditionBlock":
         auto ifBlock = statement.children[0];
@@ -149,7 +163,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
         auto ifStatements = ifBlock.children[firstStatementIndex .. $];
         auto operator = ifBlock.name == "Makefile.IfEqual" ? "==" : "!=";
         string[] mapInnerStatements(in ParseTree[] statements) {
-            return statements.map!(a => statementToReggaeLines(a, false)).join.map!(a => "    " ~ a).array;
+            return statements.map!(a => statementToReggaeLines(a, false, others, firstTarget)).join.map!(a => "    " ~ a).array;
         }
         auto elseStatements = statement.children.length > 1 ? statement.children[1].children : [];
         return [`if(` ~ translate(lhs) ~ ` ` ~ operator ~ ` ` ~ translate(rhs) ~ `) {`] ~
@@ -185,7 +199,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
         return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.TargetBlock":
-        return targetBlockToReggaeLines(statement, topLevel, others);
+        return targetBlockToReggaeLines(statement, firstTarget, others);
 
     case "Makefile.Empty":
         return [];
@@ -200,50 +214,49 @@ private string[] declareTargets(in ParseTree[] targetBlocks) {
     return targetBlocks.map!(a => `Target ` ~ targetName(a) ~ `;`).array;
 }
 
-private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget, in ParseTree[] others) {
-    string translateCommand() {
-        auto startIndex = statement.children.length > 2 ? 2 : 1;
-        auto command = statement.children[startIndex .. $].map!translate.join(` ~ ";" ~ `);
-        return command == "" ? `""` : command;
-    }
 
-    auto name = targetName(statement);
-    auto command = translateCommand;
+private string translateCommand(in ParseTree statement) {
+    if(statement.name != "Makefile.TargetBlock") return `""`;
+
+    auto startIndex = statement.children.length > 2 ? 2 : 1;
+    auto command = statement.children[startIndex .. $].map!translate.join(` ~ ";" ~ `);
+    return command == "" ? `""` : command;
+}
+
+private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget, in ParseTree[] others) {
+    import std.string;
+    import std.range;
+
+    auto command = translateCommand(statement);
     auto inputs  = statement.children[1].matches.join.split(" ");
 
     if(firstTarget && command == `""`) {
-        // no command means the first target is an aggregator
-        // this is the case where the first target simply tells make which other
-        // targets to build
-        enforce(statement.children[1].name == "Makefile.Inputs");
         return [`return Build(` ~  inputs.join(", ") ~ `);`];
     }
 
-    auto outputs = statement.children[0].matches.join.split(" ");
+    auto name = targetName(statement);
+    auto outputs = statement.children[0].matches.join.stripRight.split(" ");
     auto outputsStr = `[` ~ translateLiteralString(outputs.join(", ")) ~ `]`;
     auto inputsStr = `[` ~ (statement.children.length > 2 ? inputs: []).map!(a => `Target("` ~ a ~ `")`).join(", ") ~ `]`;
     auto params = [outputsStr, command, inputsStr];
     auto targetLine = name ~ ` = Target(` ~ params.join(", ") ~ `);`;
-    auto lines = [targetLine];
-
-    if(firstTarget) {
-        import std.range;
-        auto targetsStr = chain([targetName(statement)],
-                                others.map!(a => `optional(` ~ targetName(a) ~ `)`));
-        lines ~= `return Build(` ~ targetsStr.join(", ") ~ `);`;
-    }
-
-    return lines;
+    return [targetLine];
 }
 
 
 private string targetName(in ParseTree statement) {
+    import std.string;
     switch(statement.name) {
     case "Makefile.Statement":
     case "Makefile.CompoundStatement":
+    case "Makefile.ConditionBlock":
         return targetName(statement.children[0]);
+    case "Makefile.IfEqual":
+    case "Makefile.IfNotEqual":
+        return targetName(statement.children[$ - 1]);
+
     case "Makefile.TargetBlock":
-        return statement.children[0].matches.join.split(" ").join("_");
+        return statement.children[0].matches.join.stripRight.split(" ").join("_");
     default:
         throw new Exception("Cannot get target name from statement of type " ~ statement.name);
     }
@@ -409,6 +422,7 @@ version(unittest) {
 
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
+
         //pragma(msg, code);
         mixin(code);
 
@@ -420,18 +434,7 @@ version(unittest) {
 
         void makeVarShouldBe(string varName)(string value,
                                              string file = __FILE__, size_t line = __LINE__) {
-            try {
-                makeVars[varName].shouldEqual(value, file, line);
-            } catch(Throwable t) {
-                import std.conv;
-                throw new Exception("\n\n" ~
-                                    text(parseTree,
-                                         "\n----------------------------------------\n",
-                                         code,
-                                         "----------------------------------------\n") ~
-                                    t.toString ~ "\n\n",
-                                    file, line);
-            }
+            attempt(makeVars[varName].shouldEqual(value, file, line));
         }
 
         void makeVarShouldNotBeSet(string varName)(string file = __FILE__, size_t line = __LINE__) {
@@ -900,4 +903,19 @@ version(unittest) {
             ]);
     buildShouldBe(Build(Target("foo", "echo Foo!", []),
                         optional(Target("bar", "echo Bar!", []))));
+}
+
+@("phobos-like first target in an if block") unittest {
+    mixin TestMakeToReggae!(
+        ["ifeq (1,$(SHARED))",
+         "all : lib dll",
+         "else",
+         "all : lib",
+         "endif",
+         "lib:",
+         "\t@echo Lib",
+         "dll:",
+         "\t@echo Dll"
+            ]);
+    buildShouldBe(Build(Target("lib", "echo Lib", [])));
 }
