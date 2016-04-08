@@ -243,3 +243,24 @@ all : lib dll
 else
 all : lib
 endif
+
+
+################################################################################
+# Patterns begin here
+################################################################################
+
+#.PHONY: lib dll
+lib: $(LIB)
+dll: $(ROOT)/libphobos2.so
+
+# LLIB: $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
+# 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
+
+OBJS=foo.o bar.o
+DMD=dmd
+
+# inputs not being expanded (OBJS, etc)
+# $@ not being translated to $out
+# target name not being unsigiled
+$(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
+	$(DMD) $(DFLAGS) -lib -ofout $(DRUNTIME) $(D_FILES) $(OBJS)

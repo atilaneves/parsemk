@@ -328,7 +328,7 @@ string translate(in ParseTree expression) {
     case "Makefile.Function":
         return translateFunction(expression);
     case "Makefile.NormalVariable":
-        return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
+        return translateVariable(expression);
     case "Makefile.IndexVariable":
         return `params[` ~ unsigil(expression.matches.join) ~ `]`;
     case "Makefile.ForEachVariable":
@@ -338,6 +338,15 @@ string translate(in ParseTree expression) {
         return translateLiteralString(expression.matches.join);
     default:
         throw new Exception("Unknown expression " ~ expression.name ~ " in '" ~ expression.matches.join ~ "'");
+    }
+}
+
+string translateVariable(in ParseTree expression) {
+    switch(expression.matches.join) {
+    case "$@":
+        return `"$out"`;
+    default:
+        return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
     }
 }
 
@@ -918,4 +927,12 @@ version(unittest) {
          "\t@echo Dll"
             ]);
     buildShouldBe(Build(Target("lib", "echo Lib", [])));
+}
+
+@("Make output special variable") unittest {
+    mixin TestMakeToReggae!(
+        ["foo: foo.c",
+         "\tgcc -o $@ foo.c"
+            ]);
+    buildShouldBe(Build(Target("foo", "gcc -o $out foo.c", [Target("foo.c")])));
 }
