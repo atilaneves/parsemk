@@ -36,6 +36,7 @@ import std.process;
 import std.path;
 import std.string;
 import std.array;
+import std.path;
 
 string[string] makeVars; // dynamic variables
 
@@ -419,6 +420,9 @@ string translateFunction(in ParseTree function_) {
         auto text = translate(function_.children[1]);
         return `firstword(` ~ text ~ `)`;
 
+    case "dir":
+        return `dirName(` ~ translate(function_.children[1]) ~ `)`;
+
     default:
         throw new Exception("Unknown function " ~ name);
     }
@@ -451,7 +455,7 @@ version(unittest) {
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
 
-        pragma(msg, code);
+        //pragma(msg, code);
         mixin(code);
 
         string access(string var)() {
@@ -999,4 +1003,11 @@ version(unittest) {
                       [Target("foo.o"), Target("bar.o"), Target("toto.d"), Target("goblin.d")]);
     auto lib = Target("lib", "", [LIB]);
     buildShouldBe(Build(lib));
+}
+
+@("dir function") unittest {
+    mixin TestMakeToReggae!(
+        ["DIR=$(dir src/parsemk/reggae.d)",
+            ]);
+    makeVarShouldBe!"DIR"("src/parsemk");
 }

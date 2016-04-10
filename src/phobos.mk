@@ -253,5 +253,9 @@ endif
 lib: $(LIB)
 dll: $(ROOT)/libphobos2.so
 
+$(ROOT)/%$(DOTOBJ): %.c
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@) || [ -d $(dir $@) ]
+	$(CC) -c $(CFLAGS) $< -o$@
+
 $(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
