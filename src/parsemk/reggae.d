@@ -14,6 +14,7 @@ import std.regex;
 
 version(unittest) {
     import unit_threaded;
+    import reggae.ctaa;
 }
 else {
     enum Serial;
@@ -44,6 +45,7 @@ string consultVar(in string var, in string default_ = "") {
     return var in makeVars ? makeVars[var] : userVars.get(var, default_);
 }
 
+
 // implementation of GNU make $(findstring)
 string findstring(in string needle, in string haystack) {
     return haystack.canFind(needle) ? needle : "";
@@ -59,8 +61,9 @@ Build _getBuild() };
 
     auto lines = toReggaeLines(parseTree);
      return header ~ "{\n" ~
+         "    makeVars = userVars.toAA;\n" ~
          lines.map!(a => "    " ~ a).join("\n") ~ "\n" ~
-         `}`;
+         "}\n";
 }
 
 
@@ -197,7 +200,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
         auto val = translate(statement.children[1]);
-        return [makeVar(var) ~ ` = (` ~ consultVar(var) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
+        return [makeVar(var) ~ ` = (` ~ consultVar(`"` ~ var ~ `"`) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.TargetBlock":
         return targetBlockToReggaeLines(statement, firstTarget, others);
@@ -321,13 +324,8 @@ private string makeVar(in string varName) {
 }
 
 private string consultVar(in string varName) {
-    return `consultVar("` ~ varName ~ `")`;
+    return `consultVar(` ~ varName ~ `)`;
 }
-
-private string consultVar(in string varName, in string default_) {
-    return `consultVar("` ~ varName ~ `", ` ~ default_ ~ `)`;
-}
-
 
 string translate(in ParseTree expression) {
     import std.conv;
@@ -366,7 +364,7 @@ string translateVariable(in ParseTree expression) {
     case "$@":
         return `"$out"`;
     default:
-        return `consultVar(` ~ expression.children.map!translate.join ~ `)`;
+        return consultVar(expression.children.map!translate.join);
     }
 }
 
@@ -441,12 +439,12 @@ string translateLiteralString(in string str) {
 version(unittest) {
 
     mixin template TestMakeToReggaeUserVars(string[string] _userVars, string[] lines) {
-        string[string] userVars = _userVars;
+        auto userVars = fromAA(_userVars);
         mixin TestMakeToReggaeNoUserVars!lines;
     }
 
     mixin template TestMakeToReggae(string[] lines) {
-        string[string] userVars;
+        AssocList!(string, string) userVars;
         mixin TestMakeToReggaeNoUserVars!lines;
     }
 
@@ -568,7 +566,7 @@ version(unittest) {
          "OS=osx",
          "endif",
             ]);
-    makeVarShouldNotBeSet!"OS";
+    makeVarShouldBe!"OS"("Windows");
 }
 
 @("ifeq with non-empty comparison, no else block and no user vars") unittest {
@@ -616,7 +614,7 @@ version(unittest) {
             ]);
 
     makeVarShouldBe!"BUILD_WAS_SPECIFIED"("1");
-    makeVarShouldNotBeSet!"BUILD";
+    makeVarShouldBe!"BUILD"("debug");
 }
 
 @("nested ifeq with no user vars") unittest {
@@ -643,7 +641,7 @@ version(unittest) {
          "endif",
             ]);
     makeVarShouldNotBeSet!"uname_S";
-    makeVarShouldNotBeSet!"OS";
+    makeVarShouldBe!"OS"("Linux");
 }
 
 
