@@ -296,7 +296,7 @@ private string[] normalAssignmentLines(in ParseTree statement, in bool topLevel)
     // HACK: Get rid of empty space at the beginning if any (couldn't get the grammar to get rid of it)
     if(val.startsWith(`" `)) val = `"` ~ val[2..$];
     return topLevel
-        ? [makeVar(var) ~ ` = "` ~ var ~ `" in userVars ? userVars["` ~ var ~ `"]` ~ ` : ` ~ val ~ `;`]
+        ? [makeVar(var) ~ ` = userVars.get("` ~ var ~ `", ` ~ val ~ `);`]
         : [makeVar(var) ~ ` = ` ~ val ~ `;`];
 }
 
@@ -539,7 +539,7 @@ version(unittest) {
     }
     auto parseTree = Makefile("include " ~ fileName ~ "\n");
     toReggaeLines(parseTree).shouldEqual(
-        [`makeVars["OS"] = "OS" in userVars ? userVars["OS"] : "solaris";`,
+        [`makeVars["OS"] = userVars.get("OS", "solaris");`,
          `return Build();`]);
 }
 
