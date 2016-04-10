@@ -235,11 +235,16 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
     }
 
     auto fromInputs = statement.children.find!(a => a.name == "Makefile.Inputs");
-    auto inputsStr = fromInputs.empty
-        ? `[]`
-        : `(` ~ fromInputs.front.translate ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
+    string inputsStr = `[]`;
 
-    auto name = targetName(statement);
+    if(!fromInputs.empty) {
+        auto names = ([statement] ~ others).map!(a => targetName(a)).array;
+        // check to see if one dependency that is a variable name
+        auto var = unsigil(fromInputs.front.matches.join);
+        inputsStr = names.canFind(var)
+            ? `[` ~ var ~ `]`
+            : `(` ~ fromInputs.front.translate ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
+    }
 
     auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
     auto outputsStr = fromOutputs.empty
@@ -247,7 +252,7 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
         : `(` ~ fromOutputs.front.translate ~ `).stripRight.split(" ").array`;
 
     auto params = [outputsStr, command, inputsStr];
-    auto targetLine = name ~ ` = Target(` ~ params.join(", ") ~ `);`;
+    auto targetLine = targetName(statement) ~ ` = Target(` ~ params.join(", ") ~ `);`;
     return [targetLine];
 }
 
@@ -446,7 +451,7 @@ version(unittest) {
         enum parseTree = Makefile(lines.map!(a => a ~ "\n").join);
         enum code = toReggaeOutput(parseTree);
 
-        //pragma(msg, code);
+        pragma(msg, code);
         mixin(code);
 
         string access(string var)() {
@@ -974,4 +979,24 @@ version(unittest) {
     buildShouldBe(Build(Target("foo",
                                "dmd -of$out foo.d bar.d",
                                [Target("foo.d"), Target("bar.d")])));
+}
+
+
+@("Dependency variables can refer to previously declared targets") unittest {
+    mixin TestMakeToReggae!(
+        ["LIB=libfoo.a",
+         "OBJS=foo.o bar.o",
+         "SRCS=toto.d goblin.d",
+         "DFLAGS=-g -debug",
+         "DMD=dmd",
+         "all: lib",
+         "lib: $(LIB)",
+         "$(LIB): $(OBJS) $(SRCS)",
+         "\t$(DMD) $(DFLAGS) -lib -of$@ $(SRCS) $(OBJS)"
+            ]);
+    auto LIB = Target("libfoo.a",
+                      "dmd -g -debug -lib -of$out toto.d goblin.d foo.o bar.o",
+                      [Target("foo.o"), Target("bar.o"), Target("toto.d"), Target("goblin.d")]);
+    auto lib = Target("lib", "", [LIB]);
+    buildShouldBe(Build(lib));
 }
