@@ -57,15 +57,65 @@ string firstword(in string words) {
     return bySpace.length ? bySpace[0] : "";
 }
 
-Build _getBuild() };
+}; //end of q{}
 
     auto lines = toReggaeLines(parseTree);
-     return header ~ "{\n" ~
+     return header ~
+         patternLines(parseTree).join("\n") ~
+         "Build _getBuild() {\n" ~
          "    makeVars = userVars.toAA;\n" ~
          lines.map!(a => "    " ~ a).join("\n") ~ "\n" ~
          "}\n";
 }
 
+string[] patternLines(in ParseTree parseTree) {
+    import std.conv;
+    import std.range;
+
+
+    enforce(parseTree.name == "Makefile", "Unexpected parse tree grammar " ~ parseTree.name);
+    enforce(parseTree.children.length == 1,
+            text("Top-level node has too many children (", parseTree.children.length, ")"));
+    auto statements = parseTree.children[0];
+
+    enforce(statements.name == "Makefile.Statements",
+            text("Unexpected node ", parseTree.name, " expected Statements"));
+
+    auto patternBlocks = statements.children.
+        retro.
+        filter!(a => isTargetBlock(a)).
+        filter!(a => isPatternRule(a)).
+        array;
+
+    string[] lines;
+
+    lines ~= "Target[] patternInputs(string inputsStr) {";
+    lines ~= `    import std.regex: regex, matchFirst;`;
+    lines ~= `    auto inputs = inputsStr.stripRight.split(" ");`;
+    if(!patternBlocks.empty) {
+        auto foreach_ = `    foreach(patternRule; [` ~
+            patternBlocks.map!(a => `[` ~  [targetOutputs(a),
+                                            targetCommand(a),
+                                            targetInputs(a)].join(`, `) ~ `]`).join(`, `) ~ `]) {`;
+        lines ~= foreach_;
+        lines ~= `        auto reg = regex(patternRule[0].replace(".", "\\.").replace("%", "(.*?)"));`;
+        lines ~= `        if(inputs.all!(a => a.matchFirst(reg))) {`;
+        lines ~= `            return inputs.map!(a => Target(patternRule[0].replace("%", a.matchFirst(reg)[1]), patternRule[1], [patternRule[2].replace("%", a.matchFirst(reg)[1])].map!(a => Target(a)).array)).array;`;
+        lines ~= `        }`;
+        lines ~= `    }`;
+    }
+    lines ~= `    return inputs.map!(a => Target(a)).array;`;
+    lines ~= "}";
+    lines ~= "";
+    lines ~= "";
+
+    return lines;
+}
+
+bool isTargetBlock(in ParseTree tree) {
+    if(tree.name == "Makefile.TargetBlock") return true;
+    return reduce!((a, b) => a || isTargetBlock(b))(false, tree.children);
+}
 
 string[] toReggaeLines(ParseTree parseTree) {
     import std.conv;
@@ -79,11 +129,6 @@ string[] toReggaeLines(ParseTree parseTree) {
 
     enforce(statements.name == "Makefile.Statements",
             text("Unexpected node ", parseTree.name, " expected Statements"));
-
-    bool isTargetBlock(in ParseTree tree) {
-        if(tree.name == "Makefile.TargetBlock") return true;
-        return reduce!((a, b) => a || isTargetBlock(b))(false, tree.children);
-    }
 
     string[] lines;
 
@@ -127,7 +172,8 @@ private string[] targetsToReggaeLines(in ParseTree[] targetBlocks) {
 
     if(!lines.canFind!(a => a.canFind("return Build"))) {
         auto targetsStr = chain([targetName(defaultTarget)],
-                                otherTargets.map!(a => `optional(` ~ targetName(a) ~ `)`));
+                                otherTargets.filter!(a => !isPatternRule(a)).
+                                map!(a => `optional(` ~ targetName(a) ~ `)`));
         lines ~= [`return Build(` ~ targetsStr.join(", ") ~ `);`];
     }
 
@@ -215,7 +261,10 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
 
 // since D needs to declare variables before they're assigned...
 private string[] declareTargets(in ParseTree[] targetBlocks) {
-    return targetBlocks.map!(a => `Target ` ~ targetName(a) ~ `;`).array;
+    return targetBlocks.
+        map!(a => `Target ` ~ targetName(a) ~ `;`).
+        filter!(a => !isPatternRule(a)).
+        array;
 }
 
 
@@ -227,9 +276,71 @@ private string translateCommand(in ParseTree statement) {
     return command == "" ? `""` : command;
 }
 
+private bool isPatternRule(in ParseTree statement) {
+    switch(statement.name) {
+    case "Makefile.Statement":
+    case "Makefile.CompoundStatement":
+        return statement.children.fold!((a, b) => a || isPatternRule(b))(false);
+    case "Makefile.TargetBlock":
+        auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
+        return !fromOutputs.empty && fromOutputs.front.translate.isPatternRule;
+    default:
+        return false;
+    }
+}
+
+private bool isPatternRule(in string str) {
+    return str.canFind("%");
+}
+
+private string unquote(in string str) {
+    if(str[0] == '"') return str[1 .. $-1];
+    return str;
+}
+
+private string targetOutputs(in ParseTree statement) {
+    switch(statement.name) {
+    case "Makefile.Statement":
+    case "Makefile.CompoundStatement":
+        return targetOutputs(statement.children[0]);
+    case "Makefile.TargetBlock":
+        return translate(statement.children[0]);
+    default:
+        throw new Exception("Cannot get pattern for ", statement.matches.join);
+    }
+}
+
+private string targetInputs(in ParseTree statement) {
+    switch(statement.name) {
+    case "Makefile.Statement":
+    case "Makefile.CompoundStatement":
+        return targetInputs(statement.children[0]);
+    case "Makefile.TargetBlock":
+        return translate(statement.children[1]);
+    default:
+        throw new Exception("Cannot get pattern for ", statement.matches.join);
+    }
+}
+
+private string targetCommand(in ParseTree statement) {
+    switch(statement.name) {
+    case "Makefile.Statement":
+    case "Makefile.CompoundStatement":
+        return targetCommand(statement.children[0]);
+    case "Makefile.TargetBlock":
+        return translate(statement.children[2]);
+    default:
+        throw new Exception("Cannot get pattern for ", statement.matches.join);
+    }
+}
+
+
+
 private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarget, in ParseTree[] others) {
     import std.string;
     import std.range;
+
+    if(isPatternRule(statement)) return [];
 
     auto command = translateCommand(statement);
 
@@ -243,11 +354,23 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
 
     if(!fromInputs.empty) {
         auto names = ([statement] ~ others).map!(a => targetName(a)).array;
+
         // check to see if one dependency that is a variable name
         auto var = unsigil(fromInputs.front.matches.join);
-        inputsStr = names.canFind(var)
-            ? `[` ~ var ~ `]`
-            : `(` ~ fromInputs.front.translate ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
+
+        // check if any pattern rules match
+        auto targetBlocks = [statement] ~ others;
+        auto patterns = targetBlocks.filter!(a => isPatternRule(a));
+
+        auto inputs = fromInputs.front.translate;
+
+        if(names.canFind(var))
+            inputsStr = `[` ~ var ~ `]`; //use the variable name then
+        else if(!patterns.empty) {
+            inputsStr = `patternInputs(` ~ inputs ~ `)`;
+        }
+        else
+            inputsStr = `(` ~ inputs ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
     }
 
     auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
@@ -363,6 +486,8 @@ string translateVariable(in ParseTree expression) {
     switch(expression.matches.join) {
     case "$@":
         return `"$out"`;
+    case "$<":
+        return `"$in"`;
     default:
         return consultVar(expression.children.map!translate.join);
     }
@@ -1008,4 +1133,17 @@ version(unittest) {
         ["DIR=$(dir src/parsemk/reggae.d)",
             ]);
     makeVarShouldBe!"DIR"("src/parsemk");
+}
+
+@("pattern rules") unittest {
+    mixin TestMakeToReggae!(
+        ["app: foo.o bar.o",
+         "\tgcc -o $@ $<",
+         "%.o: %.c",
+         "\tgcc -c $< -o $@",
+            ]);
+    auto foo = Target("foo.o", "gcc -c $in -o $out", [Target("foo.c")]);
+    auto bar = Target("bar.o", "gcc -c $in -o $out", [Target("bar.c")]);
+    auto app = Target("app", "gcc -o $out $in", [foo, bar]);
+    buildShouldBe(Build(app));
 }
