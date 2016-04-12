@@ -244,12 +244,16 @@ else
 all : lib
 endif
 
+install :
+	$(MAKE) -f $(MAKEFILE) OS=$(OS) MODEL=$(MODEL) BUILD=release INSTALL_DIR=$(INSTALL_DIR) \
+		DMD=$(DMD) install2
+
 
 ################################################################################
 # Patterns begin here
 ################################################################################
 
-#.PHONY: lib dll
+.PHONY: lib dll
 lib: $(LIB)
 dll: $(ROOT)/libphobos2.so
 

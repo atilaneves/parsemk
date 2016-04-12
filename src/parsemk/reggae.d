@@ -262,8 +262,8 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
 // since D needs to declare variables before they're assigned...
 private string[] declareTargets(in ParseTree[] targetBlocks) {
     return targetBlocks.
+        filter!(a => !isPatternRule(a) && !isPhonyRule(a)).
         map!(a => `Target ` ~ targetName(a) ~ `;`).
-        filter!(a => !isPatternRule(a)).
         array;
 }
 
@@ -283,14 +283,14 @@ private bool isPatternRule(in ParseTree statement) {
         return statement.children.fold!((a, b) => a || isPatternRule(b))(false);
     case "Makefile.TargetBlock":
         auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
-        return !fromOutputs.empty && fromOutputs.front.translate.isPatternRule;
+        return !fromOutputs.empty && fromOutputs.front.translate.canFind("%");
     default:
         return false;
     }
 }
 
-private bool isPatternRule(in string str) {
-    return str.canFind("%");
+private bool isPhonyRule(in ParseTree statement) {
+    return targetName(statement) == ".PHONY";
 }
 
 private string unquote(in string str) {
@@ -341,6 +341,7 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
     import std.range;
 
     if(isPatternRule(statement)) return [];
+    if(isPhonyRule(statement)) return [];
 
     auto command = translateCommand(statement);
 
@@ -1119,7 +1120,7 @@ version(unittest) {
          "all: lib",
          "lib: $(LIB)",
          "$(LIB): $(OBJS) $(SRCS)",
-         "\t$(DMD) $(DFLAGS) -lib -of$@ $(SRCS) $(OBJS)"
+         "\t$(DMD) $(DFLAGS) -lib -of$@ $(SRCS) $(OBJS)",
             ]);
     auto LIB = Target("libfoo.a",
                       "dmd -g -debug -lib -of$out toto.d goblin.d foo.o bar.o",
@@ -1155,4 +1156,14 @@ version(unittest) {
          "ALL_D_FILES = $(addsuffix .d, $(STD_MODULES) $(EXTRA_MODULES_COMMON))",
             ]);
     makeVarShouldBe!"ALL_D_FILES"("std/array.d std/ascii.d std/base64.d std/c/fenv.d std/c/locale.d");
+}
+
+@("phony is ignored") unittest {
+    mixin TestMakeToReggae!(
+        ["all: app",
+         "app: foo.o bar.o",
+         "\tgcc -o $@ $<",
+         ".PHONY: all",
+            ]);
+    buildShouldBe(Build(Target("app", "gcc -o $out $in", [Target("foo.o"), Target("bar.o")])));
 }
