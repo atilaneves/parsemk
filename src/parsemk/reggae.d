@@ -53,7 +53,7 @@ string findstring(in string needle, in string haystack) {
 
 // implementation of GNU make $(firstword)
 string firstword(in string words) {
-    auto bySpace = words.split(" ");
+    auto bySpace = words.split;
     return bySpace.length ? bySpace[0] : "";
 }
 
@@ -91,7 +91,7 @@ string[] patternLines(in ParseTree parseTree) {
 
     lines ~= "Target[] patternInputs(string inputsStr) {";
     lines ~= `    import std.regex: regex, matchFirst;`;
-    lines ~= `    auto inputs = inputsStr.stripRight.split(" ");`;
+    lines ~= `    auto inputs = inputsStr.split;`;
     if(!patternBlocks.empty) {
         auto foreach_ = `    foreach(patternRule; [` ~
             patternBlocks.map!(a => `[` ~  [targetOutputs(a),
@@ -246,7 +246,7 @@ string[] statementToReggaeLines(in ParseTree statement, bool topLevel = true, in
     case "Makefile.PlusEqual":
         auto var = statement.children[0].matches.join;
         auto val = translate(statement.children[1]);
-        return [makeVar(var) ~ ` = (` ~ consultVar(`"` ~ var ~ `"`) ~ `.split(" ") ~ ` ~ val ~ `).join(" ");`];
+        return [makeVar(var) ~ ` = (` ~ consultVar(`"` ~ var ~ `"`) ~ `.split ~ ` ~ val ~ `).join(" ");`];
 
     case "Makefile.TargetBlock":
         return targetBlockToReggaeLines(statement, firstTarget, others);
@@ -345,7 +345,7 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
     auto command = translateCommand(statement);
 
     if(firstTarget && command == `""`) {
-        auto inputs  = statement.children[1].matches.join.split(" ");
+        auto inputs  = statement.children[1].matches.join.split;
         return [`return Build(` ~  inputs.join(", ") ~ `);`];
     }
 
@@ -370,13 +370,13 @@ private string[] targetBlockToReggaeLines(in ParseTree statement, bool firstTarg
             inputsStr = `patternInputs(` ~ inputs ~ `)`;
         }
         else
-            inputsStr = `(` ~ inputs ~ `).stripRight.split(" ").map!(a => Target(a)).array`;
+            inputsStr = `(` ~ inputs ~ `).split.map!(a => Target(a)).array`;
     }
 
     auto fromOutputs  = statement.children.find!(a => a.name == "Makefile.Outputs");
     auto outputsStr = fromOutputs.empty
         ? `""`
-        : `(` ~ fromOutputs.front.translate ~ `).stripRight.split(" ").array`;
+        : `(` ~ fromOutputs.front.translate ~ `).split.array`;
 
     auto params = [outputsStr, command, inputsStr];
     auto targetLine = targetName(statement) ~ ` = Target(` ~ params.join(", ") ~ `);`;
@@ -396,7 +396,7 @@ private string targetName(in ParseTree statement) {
         return targetName(statement.children[$ - 1]);
 
     case "Makefile.TargetBlock":
-        return unsigil(statement.children[0].matches.join.stripRight.split(" ").join("_"));
+        return unsigil(statement.children[0].matches.join.split.join("_"));
     default:
         throw new Exception("Cannot get target name from statement of type " ~ statement.name);
     }
@@ -499,12 +499,12 @@ string translateFunction(in ParseTree function_) {
     case "addsuffix":
         auto suffix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split(" ").map!(a => a ~ ` ~ suffix ~ `).join(" ")`;
+        return names ~ `.split.map!(a => a ~ ` ~ suffix ~ `).join(" ")`;
 
     case "addprefix":
         auto prefix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split(" ").map!(a => ` ~ prefix ~ ` ~ a).join(" ")`;
+        return names ~ `.split.map!(a => ` ~ prefix ~ ` ~ a).join(" ")`;
 
     case "subst":
         auto from = translate(function_.children[1]);
@@ -537,7 +537,7 @@ string translateFunction(in ParseTree function_) {
         auto list = translate(function_.children[2]);
         auto body_ = translate(function_.children[3]).
             replace(`consultVar("` ~ var ~ `")`, var);
-        return list ~ `.split(" ").map!(` ~ var ~ ` => ` ~ body_ ~ `).join(" ").stripRight`;
+        return list ~ `.split.map!(` ~ var ~ ` => ` ~ body_ ~ `).join(" ").stripRight`;
 
     case "firstword":
         auto text = translate(function_.children[1]);
