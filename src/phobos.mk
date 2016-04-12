@@ -28,7 +28,7 @@
 
 QUIET:=
 
-include src/osmodel.mak
+include osmodel.mak
 
 # Default to a release built, override with BUILD=debug
 ifeq (,$(BUILD))
@@ -64,6 +64,7 @@ BIGSTDDOC = $(DOCSRC)/std_consolidated.ddoc $(DOCSRC)/macros.ddoc
 # Set DDOC, the documentation generator
 DDOC=$(DMD) -conf= $(MODEL_FLAG) -w -c -o- -version=StdDdoc \
 	-I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS)
+
 # Set DRUNTIME name and full path
 ifneq (,$(DRUNTIME))
 	CUSTOM_DRUNTIME=1
@@ -92,6 +93,12 @@ endif
 
 # Set CFLAGS
 CFLAGS=$(MODEL_FLAG) -fPIC -DHAVE_UNISTD_H
+ifeq ($(BUILD),debug)
+	CFLAGS += -g
+else
+	CFLAGS += -O3
+endif
+
 # Set DFLAGS
 DFLAGS=-conf= -I$(DRUNTIME_PATH)/import $(DMDEXTRAFLAGS) -w -dip25 $(MODEL_FLAG) $(PIC)
 ifeq ($(BUILD),debug)
@@ -151,7 +158,7 @@ STD_PACKAGES = std $(addprefix std/,\
   experimental/allocator/building_blocks experimental/logger \
   experimental/ndslice \
   net \
-  range regex)
+  experimental range regex)
 
 # Modules broken down per package
 
@@ -161,6 +168,7 @@ PACKAGE_std = array ascii base64 bigint bitmanip compiler complex concurrency \
   outbuffer parallelism path process random signals socket socketstream stdint \
   stdio stdiobase stream string system traits typecons typetuple uni \
   uri utf uuid variant xml zip zlib
+PACKAGE_std_experimental = typecons
 PACKAGE_std_algorithm = comparison iteration mutation package searching setops \
   sorting
 PACKAGE_std_container = array binaryheap dlist package rbtree slist util
@@ -248,6 +256,18 @@ install :
 	$(MAKE) -f $(MAKEFILE) OS=$(OS) MODEL=$(MODEL) BUILD=release INSTALL_DIR=$(INSTALL_DIR) \
 		DMD=$(DMD) install2
 
+# .PHONY : unittest
+# ifeq (1,$(BUILD_WAS_SPECIFIED))
+# unittest : $(addsuffix .run,$(addprefix unittest/,$(D_MODULES)))
+# else
+# unittest : unittest-debug unittest-release
+# unittest-%:
+# 	$(MAKE) -f $(MAKEFILE) unittest OS=$(OS) MODEL=$(MODEL) DMD=$(DMD) BUILD=$*
+# endif
+
+# depend: $(addprefix $(ROOT)/unittest/,$(addsuffix .deps,$(D_MODULES)))
+
+# -include $(addprefix $(ROOT)/unittest/,$(addsuffix .deps,$(D_MODULES)))
 
 ################################################################################
 # Patterns begin here
@@ -263,3 +283,13 @@ $(ROOT)/%$(DOTOBJ): %.c
 
 $(LIB): $(OBJS) $(ALL_D_FILES) $(DRUNTIME)
 	$(DMD) $(DFLAGS) -lib -of$@ $(DRUNTIME) $(D_FILES) $(OBJS)
+
+# $(ROOT)/libphobos2.so: $(ROOT)/$(SONAME)
+# 	ln -sf $(notdir $(LIBSO)) $@
+
+# $(ROOT)/$(SONAME): $(LIBSO)
+# 	ln -sf $(notdir $(LIBSO)) $@
+
+# $(LIBSO): override PIC:=-fPIC
+# $(LIBSO): $(OBJS) $(ALL_D_FILES) $(DRUNTIMESO)
+# 	$(DMD) $(DFLAGS) -shared -debuglib= -defaultlib= -of$@ -L-soname=$(SONAME) $(DRUNTIMESO) $(LINKDL) $(D_FILES) $(OBJS)

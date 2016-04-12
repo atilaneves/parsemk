@@ -8,8 +8,9 @@ import std.array;
 
 
 void main(string[] args) {
-    auto input = cast(string)read(args[1]);
+    const fileName = args[1];
+    auto input = cast(string)read(fileName);
     auto parseTree = Makefile(input.sanitize);
     if(args.length > 2) stderr.writeln(parseTree);
-    writeln(toReggaeOutputWithImport(parseTree));
+    writeln(toReggaeOutputWithImport(fileName, parseTree));
 }
