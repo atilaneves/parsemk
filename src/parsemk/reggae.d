@@ -41,8 +41,8 @@ import std.path;
 
 string[string] makeVars; // dynamic variables
 
-string consultVar(in string var, in string default_ = "") {
-    return var in makeVars ? makeVars[var] : userVars.get(var, default_);
+string _var(in string var) {
+    return makeVars.get(var, userVars.get(var, ""));
 }
 
 
@@ -447,7 +447,7 @@ private string makeVar(in string varName) {
 }
 
 private string consultVar(in string varName) {
-    return `consultVar(` ~ varName ~ `)`;
+    return `_var(` ~ varName ~ `)`;
 }
 
 string translate(in ParseTree expression) {
@@ -536,7 +536,7 @@ string translateFunction(in ParseTree function_) {
         auto var = function_.children[1].matches.join;
         auto list = translate(function_.children[2]);
         auto body_ = translate(function_.children[3]).
-            replace(`consultVar("` ~ var ~ `")`, var);
+            replace(consultVar(`"` ~ var ~ `"`), var);
         return list ~ `.split.map!(` ~ var ~ ` => ` ~ body_ ~ `).join(" ").stripRight`;
 
     case "firstword":
