@@ -499,18 +499,18 @@ string translateFunction(in ParseTree function_) {
     case "addsuffix":
         auto suffix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split.map!(a => a ~ ` ~ suffix ~ `).join(" ")`;
+        return `(` ~ names ~ `).split.map!(a => a ~ ` ~ suffix ~ `).join(" ")`;
 
     case "addprefix":
         auto prefix = translate(function_.children[1]);
         auto names = translate(function_.children[2]);
-        return names ~ `.split.map!(a => ` ~ prefix ~ ` ~ a).join(" ")`;
+        return `(` ~ names ~ `).split.map!(a => ` ~ prefix ~ ` ~ a).join(" ")`;
 
     case "subst":
         auto from = translate(function_.children[1]);
         auto to = translate(function_.children[2]);
         auto text = translate(function_.children[3]);
-        return text ~ `.replace(` ~ from ~ `, ` ~ to ~ `)`;
+        return `(` ~ text ~ `).replace(` ~ from ~ `, ` ~ to ~ `)`;
 
     case "if":
         auto cond = translate(function_.children[1]);
@@ -1146,4 +1146,13 @@ version(unittest) {
     auto bar = Target("bar.o", "gcc -c $in -o $out", [Target("bar.c")]);
     auto app = Target("app", "gcc -o $out $in", [foo, bar]);
     buildShouldBe(Build(app));
+}
+
+@("function call should apply correctly") unittest {
+    mixin TestMakeToReggae!(
+        ["STD_MODULES=std/array std/ascii std/base64",
+         "EXTRA_MODULES_COMMON=std/c/fenv std/c/locale",
+         "ALL_D_FILES = $(addsuffix .d, $(STD_MODULES) $(EXTRA_MODULES_COMMON))",
+            ]);
+    makeVarShouldBe!"ALL_D_FILES"("std/array.d std/ascii.d std/base64.d std/c/fenv.d std/c/locale.d");
 }
